@@ -1,11 +1,11 @@
-# Delphi Member OS
+# Member OS
 ## System Architecture
 
 ## 1. Purpose
 
-This document explains the recommended architecture for Delphi Member OS, a contact rectification and membership normalization platform built to clean, verify, standardize, and synchronize member data across the Delphi Network's tools.
+This document explains the recommended architecture for Member OS, a contact rectification and membership normalization platform built to clean, verify, standardize, and synchronize member data across fragmented tools.
 
-The architecture assumes an initial internal deployment for The Delphi Network, with the system designed in a way that can later become a multi-tenant SaaS product for other membership organizations.
+The architecture assumes an initial internal deployment for a pilot membership organization, with the system designed in a way that can later become a multi-tenant SaaS product for other membership organizations.
 
 ---
 
@@ -30,7 +30,7 @@ Membership tier is not the same thing as price paid. Discounting, negotiated pri
 Every meaningful merge, remap, override, and sync action must be traceable.
 
 ### Productizability
-The internal architecture should avoid hardcoding Delphi-specific assumptions wherever possible.
+The internal architecture should avoid hardcoding organization-specific assumptions wherever possible.
 
 ---
 
@@ -385,7 +385,7 @@ To support future commercialization, the architecture should later support:
 - usage metering
 - billing and subscription management for the product itself
 
-The initial Delphi deployment should still be built with this future in mind.
+The initial pilot deployment should still be built with this future in mind.
 
 ---
 

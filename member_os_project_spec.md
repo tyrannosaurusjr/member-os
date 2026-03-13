@@ -1,9 +1,9 @@
-# Delphi Member OS
+# Member OS
 
 ## Contact Rectification and Membership Normalization Platform
 
 Author: Matt Ketchum\
-Organization: The Delphi Network\
+Use Case: Membership organization with fragmented systems\
 Document Type: Product & Technical Specification\
 Version: 1.0
 
@@ -11,7 +11,7 @@ Version: 1.0
 
 # 1. Overview
 
-The Delphi Network operates across multiple digital platforms that each
+The target organization operates across multiple digital platforms that each
 contain contact and membership data. These platforms include:
 
 -   Stripe
@@ -38,8 +38,7 @@ The purpose of this platform is to establish a **canonical database of
 people and memberships** and synchronize this cleaned dataset back to
 external systems.
 
-This platform will serve as a **Member Operating System (Member OS)**
-for The Delphi Network.
+This platform will serve as a **Member Operating System (Member OS)**.
 
 ------------------------------------------------------------------------
 
@@ -243,7 +242,7 @@ Fields:
 
 Example:
 
-Stripe tier "Delphi Circle"\
+Stripe tier "Founding Circle"\
 → Canonical tier "Core Member"
 
 ------------------------------------------------------------------------
@@ -287,7 +286,7 @@ Operational fields:
 
 # 8. Discount Handling
 
-Discounting is common within the Delphi Network.
+Discounting is common in membership organizations with negotiated pricing.
 
 The system must track:
 
@@ -514,7 +513,7 @@ Consistent data across Stripe, Mailchimp, and Luma
 
 # 19. Long-Term Vision
 
-The Delphi Member OS can evolve into a SaaS platform for:
+Member OS can evolve into a SaaS platform for:
 
 -   founder networks
 -   venture communities

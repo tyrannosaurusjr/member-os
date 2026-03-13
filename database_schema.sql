@@ -1,4 +1,4 @@
--- Delphi Member OS
+-- Member OS
 -- PostgreSQL Schema
 -- Version 1.0
 
