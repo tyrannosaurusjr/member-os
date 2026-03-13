@@ -1,4 +1,4 @@
-# Delphi Member OS
+# Member OS
 ## API Specification
 
 Base URL: `/api/v1`
@@ -111,10 +111,31 @@ Upload a CSV file for Apple Contacts or manual records.
 
 Multipart form data:
 - file
+- source_system
 
 Response:
 - import_run_id
 - records_received
+
+Notes:
+- creates or updates `external_profiles`
+- stores raw CSV row payloads
+- tracks row-level successes and failures through import run metadata
+
+### GET /import-runs/{import_run_id}
+Fetch import run status and row-level failure details.
+
+Response fields:
+- import_run_id
+- source_system
+- status
+- records_received
+- records_processed
+- records_failed
+- error_summary
+- started_at
+- completed_at
+- failures
 
 ---
 
@@ -152,7 +173,7 @@ Request body:
 ```json
 {
   "source_system": "stripe",
-  "source_tier_name": "Delphi Circle",
+  "source_tier_name": "Founding Circle",
   "source_product_id": "prod_123",
   "canonical_tier_id": "uuid",
   "confidence_score": 92

@@ -1,4 +1,4 @@
-# Delphi Member OS
+# Member OS
 ## UI Wireframes and Dashboard Layout
 
 ## 1. Design Intent
@@ -267,7 +267,7 @@ Right side:
 | Tier Mapping                                                                     |
 +----------------------------------------------------------------------------------+
 | Unknown Source Tier         | Source     | Price      | Records                  |
-| Delphi Circle               | Stripe     | 250000     | 24                       |
+| Founding Circle             | Stripe     | 250000     | 24                       |
 | Executive Partner           | Sheets     | 150000     | 8                        |
 +----------------------------------------------------------------------------------+
 | Map To Canonical Tier: [Core Member v]   [Save Mapping]                          |
