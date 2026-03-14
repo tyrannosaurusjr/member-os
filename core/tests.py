@@ -1,9 +1,14 @@
+import tempfile
+from pathlib import Path
+
+from django.core.management import call_command
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
+from .apple_contacts import FIELD_SEPARATOR, RECORD_SEPARATOR, build_import_rows, parse_contacts_export
 from .normalization import normalize_email, normalize_name, normalize_phone
 from .models import (
     CanonicalMembershipTier,
@@ -79,6 +84,86 @@ class NormalizationTests(SimpleTestCase):
         self.assertEqual(
             normalize_phone('415-555-0100 ext 42'),
             '+14155550100',
+        )
+
+
+class AppleContactsWorkflowTests(SimpleTestCase):
+    def test_parse_contacts_export_reads_field_and_record_separators(self):
+        raw_text = RECORD_SEPARATOR.join(
+            [
+                FIELD_SEPARATOR.join(
+                    [
+                        'contact-1',
+                        'Jane Smith',
+                        'Jane',
+                        'Smith',
+                        'jane@example.com',
+                        'jsmith@work.com',
+                        'jane@example.com|||jsmith@work.com',
+                        '+14155550100',
+                        '+14155550101',
+                        '+14155550100|||+14155550101',
+                        'Acme Ventures',
+                        'Partner',
+                        'Met at summit',
+                    ]
+                )
+            ]
+        )
+
+        contacts = parse_contacts_export(raw_text)
+
+        self.assertEqual(len(contacts), 1)
+        self.assertEqual(contacts[0]['source_record_id'], 'contact-1')
+        self.assertEqual(
+            contacts[0]['emails'],
+            ['jane@example.com', 'jsmith@work.com'],
+        )
+
+    def test_build_import_rows_preserves_multi_value_email_and_phone_context(self):
+        rows = build_import_rows(
+            [
+                {
+                    'source_record_id': 'contact-1',
+                    'full_name': 'Jane Smith',
+                    'first_name': 'Jane',
+                    'last_name': 'Smith',
+                    'emails': ['jane@example.com', 'jsmith@work.com'],
+                    'phones': ['+14155550100', '+14155550101'],
+                    'company': 'Acme Ventures',
+                    'job_title': 'Partner',
+                    'notes': 'Met at summit',
+                }
+            ]
+        )
+
+        self.assertEqual(rows[0]['primary_email'], 'jane@example.com')
+        self.assertEqual(rows[0]['secondary_email'], 'jsmith@work.com')
+        self.assertEqual(rows[0]['primary_phone'], '+14155550100')
+        self.assertEqual(rows[0]['secondary_phone'], '+14155550101')
+        self.assertEqual(rows[0]['all_emails_json'], '["jane@example.com", "jsmith@work.com"]')
+
+
+class ImportExternalProfilesCommandTests(TestCase):
+    def test_management_command_imports_csv_from_filesystem(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            csv_path = Path(temp_dir) / 'apple_contacts.csv'
+            csv_path.write_text(
+                'source_record_id,full_name,primary_email\n'
+                'contact-1,Jane Smith,jane@example.com\n',
+                encoding='utf-8',
+            )
+
+            call_command(
+                'import_external_profiles_csv',
+                str(csv_path),
+                source_system=SourceSystem.APPLE_CONTACTS,
+            )
+
+        self.assertEqual(ExternalProfile.objects.count(), 1)
+        self.assertEqual(
+            ExternalProfile.objects.get().source_system,
+            SourceSystem.APPLE_CONTACTS,
         )
 
 

@@ -74,6 +74,19 @@ This repository starts with a Django-first bootstrap because the product is oper
    - sample CSV template: `http://127.0.0.1:8000/imports/sample.csv`
    - review queue: `http://127.0.0.1:8000/reviews/`
 
+11. Apple Contacts workflow:
+
+   ```bash
+   ./scripts/apple_contacts_to_member_os.sh --output ./tmp/apple-contacts.csv
+   ./scripts/apple_contacts_to_member_os.sh --import --output ./tmp/apple-contacts.csv
+   ```
+
+   Notes:
+
+   - the first run will prompt macOS to grant Contacts access to Terminal or `osascript`
+   - export writes a CSV in the Member OS import shape
+   - `--import` runs the standard Django ingestion pipeline with `source_system=apple_contacts`
+
 ## Deploy On Railway
 
 This repo includes a root-level Railway config in `railway.toml` for the Django app.
