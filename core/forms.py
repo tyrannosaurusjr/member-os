@@ -1,6 +1,8 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
 
+from .models import SourceSystem
+
 
 class StaffAuthenticationForm(AuthenticationForm):
     username = forms.CharField(
@@ -48,3 +50,23 @@ class StyledPasswordChangeForm(PasswordChangeForm):
         strip=False,
         widget=forms.PasswordInput(attrs={'autocomplete': 'new-password'}),
     )
+
+
+class CsvImportForm(forms.Form):
+    source_system = forms.ChoiceField(
+        label='Source system',
+        choices=SourceSystem.choices,
+        initial=SourceSystem.MANUAL_CSV,
+    )
+    file = forms.FileField(
+        label='CSV file',
+        help_text='Upload a UTF-8 CSV with a header row. Raw rows are preserved append-only.',
+        widget=forms.ClearableFileInput(attrs={'accept': '.csv,text/csv'}),
+    )
+
+    def clean_file(self):
+        uploaded_file = self.cleaned_data['file']
+        filename = (uploaded_file.name or '').lower()
+        if filename and not filename.endswith('.csv'):
+            raise forms.ValidationError('Upload a file ending in .csv.')
+        return uploaded_file

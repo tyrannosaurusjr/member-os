@@ -16,6 +16,8 @@ from .models import (
     Person,
     SourceSystem,
     SyncDirection,
+    SyncEvent,
+    SyncEventStatus,
     SyncRun,
     SyncRunStatus,
 )
@@ -433,3 +435,58 @@ class OperatorAuthTests(TestCase):
         self.assertTrue(
             self.staff_user.check_password('EvenStrongerPassword456!')
         )
+
+    def test_staff_can_import_csv_from_operator_home(self):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.post(
+            reverse('operator-home'),
+            {
+                'source_system': SourceSystem.MANUAL_CSV,
+                'file': SimpleUploadedFile(
+                    'operators.csv',
+                    (
+                        'source_record_id,full_name,primary_email\n'
+                        'ext-101,Jane Smith,jane@example.com\n'
+                    ).encode('utf-8'),
+                    content_type='text/csv',
+                ),
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Import complete: 1 processed, 0 failed.')
+        self.assertContains(response, 'Import Workspace')
+        self.assertEqual(ExternalProfile.objects.count(), 1)
+        self.assertEqual(SyncRun.objects.count(), 1)
+
+    def test_operator_home_shows_selected_run_failures(self):
+        self.client.force_login(self.staff_user)
+        sync_run = SyncRun.objects.create(
+            source_system=SourceSystem.MANUAL_CSV,
+            direction=SyncDirection.INBOUND,
+            status=SyncRunStatus.COMPLETED,
+            records_processed=1,
+            records_failed=1,
+            error_summary='1 row failed during import.',
+        )
+        SyncEvent.objects.create(
+            sync_run=sync_run,
+            source_system=SourceSystem.MANUAL_CSV,
+            action_type='csv_import_row',
+            payload={
+                'row_number': 3,
+                'row': {'full_name': ''},
+                'source_record_id': 'ext-404',
+            },
+            status=SyncEventStatus.ERROR,
+            error_message='Row is missing an identity hint.',
+        )
+
+        response = self.client.get(reverse('operator-home'), {'run': sync_run.sync_run_id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '1 row failed during import.')
+        self.assertContains(response, 'Row 3')
+        self.assertContains(response, 'Row is missing an identity hint.')

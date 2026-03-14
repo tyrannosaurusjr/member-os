@@ -118,7 +118,9 @@ a {
 
 .stats-grid,
 .actions-grid,
-.list-grid {
+.list-grid,
+.import-grid,
+.detail-grid {
   display: grid;
   gap: 16px;
 }
@@ -133,6 +135,15 @@ a {
 
 .list-grid {
   grid-template-columns: 1.2fr 0.8fr;
+}
+
+.import-grid {
+  grid-template-columns: 0.9fr 1.1fr;
+}
+
+.detail-grid {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin-top: 18px;
 }
 
 .card,
@@ -300,13 +311,19 @@ label {
 
 input[type="text"],
 input[type="password"],
-input[type="email"] {
+input[type="email"],
+select,
+input[type="file"] {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 13px 14px;
   font: inherit;
   background: #fffdf8;
+}
+
+input[type="file"] {
+  padding: 11px 12px;
 }
 
 .help-list,
@@ -344,9 +361,60 @@ input[type="email"] {
   font-size: 0.92rem;
 }
 
+.detail-stat {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(30, 90, 86, 0.03);
+}
+
+.detail-value {
+  font-size: 1.35rem;
+}
+
+.timeline-block {
+  margin-top: 20px;
+  padding-top: 6px;
+}
+
+.timeline-block p {
+  margin-top: 10px;
+}
+
+.failure-stack {
+  margin-top: 22px;
+}
+
+.compact-list li {
+  padding-bottom: 18px;
+}
+
+.payload-block {
+  margin-top: 12px;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #f6f0e4;
+  border: 1px solid rgba(29, 27, 25, 0.08);
+  border-radius: 14px;
+  font: 0.88rem/1.45 "SFMono-Regular", "Menlo", monospace;
+  color: var(--muted);
+}
+
+.run-link {
+  color: var(--accent-strong);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.run-link-active {
+  text-decoration: underline;
+}
+
 @media (max-width: 800px) {
   .hero,
-  .list-grid {
+  .list-grid,
+  .import-grid {
     grid-template-columns: 1fr;
   }
 

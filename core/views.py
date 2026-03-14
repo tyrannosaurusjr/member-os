@@ -1,16 +1,18 @@
 from functools import wraps
+from uuid import UUID
 
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeDoneView, PasswordChangeView
 from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_POST
 from django.views.generic import RedirectView, TemplateView
 
-from .forms import StaffAuthenticationForm, StyledPasswordChangeForm
+from .forms import CsvImportForm, StaffAuthenticationForm, StyledPasswordChangeForm
 from .imports import CsvImportError, import_external_profiles_from_csv, serialize_import_run
 from .models import (
     ExternalProfile,
@@ -72,10 +74,38 @@ class OperatorRootView(RedirectView):
 class OperatorHomeView(StaffRequiredMixin, TemplateView):
     template_name = 'core/operator_home.html'
 
+    def get_recent_import_runs(self):
+        return list(
+            SyncRun.objects.filter(direction=SyncDirection.INBOUND).order_by('-started_at')[:8]
+        )
+
+    def get_selected_import_run(self, recent_import_runs):
+        sync_run_id = self.request.GET.get('run')
+        if sync_run_id:
+            try:
+                UUID(sync_run_id)
+            except ValueError:
+                return None
+            return (
+                SyncRun.objects.filter(
+                    sync_run_id=sync_run_id,
+                    direction=SyncDirection.INBOUND,
+                )
+                .order_by('-started_at')
+                .first()
+            )
+        return recent_import_runs[0] if recent_import_runs else None
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        recent_import_runs = kwargs.get('recent_import_runs') or self.get_recent_import_runs()
+        selected_import_run = kwargs.get('selected_import_run')
+        if selected_import_run is None:
+            selected_import_run = self.get_selected_import_run(recent_import_runs)
+
         context.update(
             {
+                'import_form': kwargs.get('import_form') or CsvImportForm(),
                 'people_count': Person.objects.count(),
                 'external_profiles_count': ExternalProfile.objects.count(),
                 'inbound_sync_runs_count': SyncRun.objects.filter(
@@ -84,12 +114,51 @@ class OperatorHomeView(StaffRequiredMixin, TemplateView):
                 'open_merge_candidates_count': MergeCandidate.objects.filter(
                     status=MergeCandidateStatus.OPEN
                 ).count(),
-                'recent_import_runs': SyncRun.objects.filter(
-                    direction=SyncDirection.INBOUND
-                ).order_by('-started_at')[:5],
+                'recent_import_runs': recent_import_runs,
+                'selected_import_run': (
+                    serialize_import_run(selected_import_run)
+                    if selected_import_run
+                    else None
+                ),
+                'selected_import_run_id': (
+                    str(selected_import_run.sync_run_id) if selected_import_run else None
+                ),
             }
         )
         return context
+
+    def post(self, request, *args, **kwargs):
+        import_form = CsvImportForm(request.POST, request.FILES)
+        recent_import_runs = self.get_recent_import_runs()
+
+        if import_form.is_valid():
+            try:
+                result = import_external_profiles_from_csv(
+                    import_form.cleaned_data['file'],
+                    import_form.cleaned_data['source_system'],
+                )
+            except CsvImportError as exc:
+                import_form.add_error(None, str(exc))
+            else:
+                summary = (
+                    f'Import complete: {result.sync_run.records_processed} processed, '
+                    f'{result.sync_run.records_failed} failed.'
+                )
+                if result.sync_run.records_failed:
+                    messages.warning(request, summary)
+                else:
+                    messages.success(request, summary)
+                return redirect(
+                    f'{reverse_lazy("operator-home")}?run={result.sync_run.sync_run_id}'
+                )
+
+        return self.render_to_response(
+            self.get_context_data(
+                import_form=import_form,
+                recent_import_runs=recent_import_runs,
+                selected_import_run=self.get_selected_import_run(recent_import_runs),
+            )
+        )
 
 
 class StaffPasswordChangeView(StaffRequiredMixin, PasswordChangeView):

@@ -62,6 +62,12 @@ This repository starts with a Django-first bootstrap because the product is oper
    - operator home: `http://127.0.0.1:8000/home/`
    - Django admin: `http://127.0.0.1:8000/admin/`
 
+9. Run imports from the browser:
+
+   - open `http://127.0.0.1:8000/home/`
+   - upload a CSV and choose the source system
+   - inspect per-run failures directly on the page
+
 ## Deploy On Railway
 
 This repo includes a root-level Railway config in `railway.toml` for the Django app.

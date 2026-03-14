@@ -65,6 +65,110 @@
           </article>
         </section>
 
+        <section class="import-grid">
+          <article class="panel">
+            <span class="eyebrow">Import Workspace</span>
+            <h2>Upload a source file</h2>
+            <p>
+              Use this page for operational imports instead of posting directly to the API.
+              Every import creates append-only raw snapshots and a reviewable run record.
+            </p>
+
+            {% if import_form.non_field_errors %}
+              <div class="error-panel">{{ import_form.non_field_errors }}</div>
+            {% endif %}
+
+            <form method="post" enctype="multipart/form-data" class="form-stack">
+              {% csrf_token %}
+              <div class="field-group">
+                {{ import_form.source_system.label_tag }}
+                {{ import_form.source_system }}
+                {% if import_form.source_system.errors %}
+                  <div class="error-panel">{{ import_form.source_system.errors }}</div>
+                {% endif %}
+              </div>
+              <div class="field-group">
+                {{ import_form.file.label_tag }}
+                {{ import_form.file }}
+                {% if import_form.file.help_text %}
+                  <div class="field-help">{{ import_form.file.help_text }}</div>
+                {% endif %}
+                {% if import_form.file.errors %}
+                  <div class="error-panel">{{ import_form.file.errors }}</div>
+                {% endif %}
+              </div>
+              <div class="nav-actions">
+                <input type="submit" value="Run import">
+              </div>
+            </form>
+          </article>
+
+          <article class="panel">
+            <span class="eyebrow">Run Detail</span>
+            <h2>
+              {% if selected_import_run %}
+                Import {{ selected_import_run.import_run_id|slice:":8" }}
+              {% else %}
+                No import selected
+              {% endif %}
+            </h2>
+
+            {% if selected_import_run %}
+              <div class="detail-grid">
+                <div class="detail-stat">
+                  <span class="eyebrow">Source</span>
+                  <p class="card-stat detail-value">{{ selected_import_run.source_system }}</p>
+                </div>
+                <div class="detail-stat">
+                  <span class="eyebrow">Status</span>
+                  <p class="card-stat detail-value">{{ selected_import_run.status }}</p>
+                </div>
+                <div class="detail-stat">
+                  <span class="eyebrow">Processed</span>
+                  <p class="card-stat detail-value">{{ selected_import_run.records_processed }}</p>
+                </div>
+                <div class="detail-stat">
+                  <span class="eyebrow">Failed</span>
+                  <p class="card-stat detail-value">{{ selected_import_run.records_failed }}</p>
+                </div>
+              </div>
+
+              <div class="timeline-block">
+                <p><strong>Started</strong> {{ selected_import_run.started_at }}</p>
+                <p><strong>Completed</strong> {{ selected_import_run.completed_at|default:"Still running" }}</p>
+                <p><strong>Received</strong> {{ selected_import_run.records_received }}</p>
+                {% if selected_import_run.error_summary %}
+                  <p><strong>Summary</strong> {{ selected_import_run.error_summary }}</p>
+                {% endif %}
+              </div>
+
+              {% if selected_import_run.failures %}
+                <div class="failure-stack">
+                  <h3>Row failures</h3>
+                  <ul class="list compact-list">
+                    {% for failure in selected_import_run.failures %}
+                      <li>
+                        <div class="pill pill-danger">Row {{ failure.row_number }}</div>
+                        <p><strong>{{ failure.error_message }}</strong></p>
+                        {% if failure.source_record_id %}
+                          <p class="muted">Source record: {{ failure.source_record_id }}</p>
+                        {% endif %}
+                        {% if failure.row %}
+                          <pre class="payload-block">{{ failure.row }}</pre>
+                        {% endif %}
+                      </li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% else %}
+                <p>No row-level failures recorded for this run.</p>
+              {% endif %}
+            {% else %}
+              <p>Run your first CSV import to see per-run detail here.</p>
+            {% endif %}
+          </article>
+        </section>
+
         <section class="actions-grid">
           <a class="action-link" href="/admin/">
             <article class="card">
@@ -95,7 +199,15 @@
                   <li>
                     <div class="pill">{{ sync_run.get_source_system_display }}</div>
                     <p><strong>{{ sync_run.get_status_display }}</strong> • {{ sync_run.records_processed }} processed / {{ sync_run.records_failed }} failed</p>
-                    <p class="muted">{{ sync_run.created_at }}</p>
+                    <p class="muted">{{ sync_run.started_at|date:"Y-m-d H:i:s" }}</p>
+                    <p>
+                      <a
+                        class="run-link{% if selected_import_run_id == sync_run.sync_run_id|stringformat:'s' %} run-link-active{% endif %}"
+                        href="{% url 'operator-home' %}?run={{ sync_run.sync_run_id }}"
+                      >
+                        Inspect run
+                      </a>
+                    </p>
                   </li>
                 {% endfor %}
               </ul>
@@ -110,6 +222,10 @@
               <li>
                 <span class="pill">Auth</span>
                 <p>Staff-only login controls access to the operator shell and import endpoints.</p>
+              </li>
+              <li>
+                <span class="pill">Imports</span>
+                <p>Browser uploads now use the same normalization and append-only snapshot pipeline as the API.</p>
               </li>
               <li>
                 <span class="pill">Audit</span>
