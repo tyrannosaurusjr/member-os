@@ -1,4 +1,5 @@
 import tempfile
+import json
 from pathlib import Path
 
 from django.core.management import call_command
@@ -9,6 +10,7 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from .apple_contacts import FIELD_SEPARATOR, RECORD_SEPARATOR, build_import_rows, parse_contacts_export
+from .stripe_export import build_import_rows as build_stripe_import_rows
 from .normalization import normalize_email, normalize_name, normalize_phone
 from .models import (
     CanonicalMembershipTier,
@@ -142,6 +144,97 @@ class AppleContactsWorkflowTests(SimpleTestCase):
         self.assertEqual(rows[0]['primary_phone'], '+14155550100')
         self.assertEqual(rows[0]['secondary_phone'], '+14155550101')
         self.assertEqual(rows[0]['all_emails_json'], '["jane@example.com", "jsmith@work.com"]')
+
+
+class StripeWorkflowTests(SimpleTestCase):
+    def test_build_import_rows_maps_customer_and_subscription_context(self):
+        rows = build_stripe_import_rows(
+            customers=[
+                {
+                    'id': 'cus_123',
+                    'name': 'Jane Smith',
+                    'email': 'jane@example.com',
+                    'phone': '+14155550100',
+                    'metadata': {
+                        'company': 'Acme Ventures',
+                        'title': 'Partner',
+                    },
+                    'description': 'Delphi member',
+                    'created': 1710000000,
+                    'currency': 'usd',
+                    'livemode': False,
+                    'delinquent': False,
+                    'balance': 0,
+                }
+            ],
+            subscriptions=[
+                {
+                    'id': 'sub_123',
+                    'customer': 'cus_123',
+                    'status': 'active',
+                    'cancel_at_period_end': False,
+                    'current_period_start': 1710000000,
+                    'current_period_end': 1712592000,
+                    'items': {
+                        'data': [
+                            {
+                                'price': {
+                                    'id': 'price_123',
+                                    'product': 'prod_123',
+                                    'unit_amount': 50000,
+                                    'currency': 'usd',
+                                    'nickname': 'Core Membership',
+                                    'recurring': {
+                                        'interval': 'month',
+                                        'interval_count': 1,
+                                    },
+                                }
+                            }
+                        ]
+                    },
+                }
+            ],
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['source_record_id'], 'cus_123')
+        self.assertEqual(rows[0]['full_name'], 'Jane Smith')
+        self.assertEqual(rows[0]['first_name'], 'Jane')
+        self.assertEqual(rows[0]['last_name'], 'Smith')
+        self.assertEqual(rows[0]['company'], 'Acme Ventures')
+        self.assertEqual(rows[0]['job_title'], 'Partner')
+        self.assertEqual(rows[0]['membership_status'], 'active')
+        self.assertEqual(rows[0]['stripe_subscription_count'], '1')
+        self.assertEqual(rows[0]['stripe_active_subscription_count'], '1')
+        self.assertIn('Delphi member', rows[0]['notes'])
+        self.assertIn('Stripe subscriptions: active x1', rows[0]['notes'])
+        subscriptions_payload = json.loads(rows[0]['stripe_subscriptions_json'])
+        self.assertEqual(subscriptions_payload[0]['status'], 'active')
+        self.assertEqual(subscriptions_payload[0]['items'][0]['price_id'], 'price_123')
+
+    def test_build_import_rows_falls_back_to_email_for_missing_name(self):
+        rows = build_stripe_import_rows(
+            customers=[
+                {
+                    'id': 'cus_456',
+                    'email': 'ops.team@example.com',
+                    'metadata': {},
+                    'created': 1710000000,
+                    'livemode': True,
+                    'delinquent': True,
+                    'balance': 1200,
+                }
+            ],
+            subscriptions=[],
+        )
+
+        self.assertEqual(rows[0]['full_name'], 'Ops Team')
+        self.assertEqual(rows[0]['first_name'], 'Ops')
+        self.assertEqual(rows[0]['last_name'], 'Team')
+        self.assertEqual(rows[0]['membership_status'], '')
+        self.assertEqual(rows[0]['stripe_subscription_count'], '0')
+        self.assertEqual(rows[0]['stripe_livemode'], 'true')
+        self.assertEqual(rows[0]['stripe_delinquent'], 'true')
 
 
 class ImportExternalProfilesCommandTests(TestCase):

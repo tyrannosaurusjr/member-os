@@ -87,6 +87,21 @@ This repository starts with a Django-first bootstrap because the product is oper
    - export writes a CSV in the Member OS import shape
    - `--import` runs the standard Django ingestion pipeline with `source_system=apple_contacts`
 
+12. Stripe workflow:
+
+   ```bash
+   export STRIPE_API_KEY=sk_live_or_test_...
+   ./scripts/stripe_to_member_os.sh --output ./tmp/stripe-customers.csv
+   ./scripts/stripe_to_member_os.sh --import --output ./tmp/stripe-customers.csv
+   ```
+
+   Notes:
+
+   - export calls Stripe's official REST API directly using your secret key
+   - it fetches customers plus subscriptions, then writes a Member OS CSV
+   - `--import` runs the standard Django ingestion pipeline with `source_system=stripe`
+   - the Django web server does not need to be running for the CLI export/import flow
+
 ## Deploy On Railway
 
 This repo includes a root-level Railway config in `railway.toml` for the Django app.
