@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}People Directory | Member OS{% endblock %}
+
+{% block body %}
+  <div class="shell">
+    <div class="site-nav">
+      <a class="brand" href="{% url 'operator-home' %}">Member OS</a>
+      <div class="nav-actions">
+        <a class="button button-secondary" href="{% url 'operator-home' %}">Home</a>
+        <a class="button button-secondary" href="{% url 'sample-import-csv-template' %}">Sample CSV</a>
+        <a class="button button-secondary" href="/admin/">Open admin</a>
+        <form class="inline-form" method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button type="submit">Sign out</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="frame">
+      <section class="hero">
+        <div>
+          <span class="eyebrow">Canonical People</span>
+          <h1>People directory and import triage.</h1>
+          <p>
+            Search canonical people by name, email, company, or linked source identifier.
+            This page also shows imported profiles that still need canonical linkage.
+          </p>
+        </div>
+        <div class="hero-meta">
+          <div class="meta-chip">People: {{ people_count }}</div>
+          <div class="meta-chip">Linked profiles: {{ linked_external_profiles_count }}</div>
+          <div class="meta-chip">Unlinked profiles: {{ unlinked_external_profiles_count }}</div>
+        </div>
+      </section>
+
+      <div class="content-grid">
+        <section class="search-panel">
+          <article class="panel">
+            <form method="get" class="search-form">
+              <div class="field-group">
+                <label for="people-search">Search people</label>
+                <input id="people-search" type="text" name="q" value="{{ query }}" placeholder="Jane Smith, Acme, jane@example.com">
+              </div>
+              <div class="nav-actions">
+                <input type="submit" value="Search">
+                {% if query %}
+                  <a class="button button-secondary" href="{% url 'people-directory' %}">Clear</a>
+                {% endif %}
+              </div>
+            </form>
+          </article>
+        </section>
+
+        <section class="list-grid">
+          <article class="panel">
+            <h2>Directory</h2>
+            {% if people %}
+              <ul class="list">
+                {% for person in people %}
+                  <li>
+                    <p><strong><a class="run-link" href="{% url 'person-detail' person.person_id %}">{{ person.full_name }}</a></strong></p>
+                    <p class="muted">
+                      {% if person.primary_email %}{{ person.primary_email }}{% else %}No primary email{% endif %}
+                      {% if person.company %} • {{ person.company }}{% endif %}
+                      {% if person.job_title %} • {{ person.job_title }}{% endif %}
+                    </p>
+                    <p class="muted">{{ person.external_profile_count }} linked external profile{{ person.external_profile_count|pluralize }}</p>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p>No canonical people matched this search.</p>
+              <p class="muted">
+                Current imports create external profiles and snapshots. Canonical people appear here once records are linked into `Person`.
+              </p>
+            {% endif %}
+          </article>
+
+          <article class="panel">
+            <h2>Recent Unlinked Profiles</h2>
+            {% if recent_unlinked_profiles %}
+              <ul class="list">
+                {% for profile in recent_unlinked_profiles %}
+                  <li>
+                    <div class="pill">{{ profile.get_source_system_display }}</div>
+                    <p><strong>{{ profile.source_record_id }}</strong></p>
+                    <p class="muted">
+                      {% if profile.source_payload_json.full_name %}{{ profile.source_payload_json.full_name }}{% elif profile.source_payload_json.name %}{{ profile.source_payload_json.name }}{% else %}No parsed name yet{% endif %}
+                    </p>
+                    <p class="muted">{% if profile.source_payload_json.primary_email %}{{ profile.source_payload_json.primary_email }}{% elif profile.source_payload_json.email %}{{ profile.source_payload_json.email }}{% else %}No parsed email{% endif %}</p>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p>There are no unlinked external profiles right now.</p>
+            {% endif %}
+          </article>
+        </section>
+      </div>
+    </div>
+  </div>
+{% endblock %}

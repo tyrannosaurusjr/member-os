@@ -490,3 +490,75 @@ class OperatorAuthTests(TestCase):
         self.assertContains(response, '1 row failed during import.')
         self.assertContains(response, 'Row 3')
         self.assertContains(response, 'Row is missing an identity hint.')
+
+    def test_staff_can_download_sample_import_template(self):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(reverse('sample-import-csv-template'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/csv')
+        self.assertIn('attachment; filename="member-os-sample-import.csv"', response['Content-Disposition'])
+        self.assertIn('source_record_id,full_name,primary_email', response.content.decode('utf-8'))
+
+    def test_people_directory_lists_people_and_unlinked_profiles(self):
+        self.client.force_login(self.staff_user)
+        person = Person.objects.create(
+            full_name='Jane Smith',
+            primary_email='jane@example.com',
+            company='Acme Ventures',
+        )
+        ExternalProfile.objects.create(
+            person=person,
+            source_system=SourceSystem.MANUAL_CSV,
+            source_record_id='ext-linked',
+        )
+        ExternalProfile.objects.create(
+            source_system=SourceSystem.MANUAL_CSV,
+            source_record_id='ext-unlinked',
+            source_payload_json={'full_name': 'Unlinked Person'},
+        )
+
+        response = self.client.get(reverse('people-directory'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'People directory and import triage.')
+        self.assertContains(response, 'Jane Smith')
+        self.assertContains(response, 'Unlinked Person')
+
+    def test_people_directory_search_filters_results(self):
+        self.client.force_login(self.staff_user)
+        Person.objects.create(full_name='Jane Smith', company='Acme Ventures')
+        Person.objects.create(full_name='David Chen', company='Summit Capital')
+
+        response = self.client.get(reverse('people-directory'), {'q': 'Acme'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Jane Smith')
+        self.assertNotContains(response, 'David Chen')
+
+    def test_person_detail_shows_linked_profiles_and_snapshots(self):
+        self.client.force_login(self.staff_user)
+        person = Person.objects.create(
+            full_name='Jane Smith',
+            primary_email='jane@example.com',
+            company='Acme Ventures',
+        )
+        profile = ExternalProfile.objects.create(
+            person=person,
+            source_system=SourceSystem.MANUAL_CSV,
+            source_record_id='ext-123',
+            source_payload_json={'full_name': 'Jane Smith'},
+        )
+        ExternalProfileSnapshot.objects.create(
+            external_profile=profile,
+            raw_payload_json={'full_name': 'Jane Smith'},
+            normalized_payload_json={'full_name': 'Jane Smith'},
+        )
+
+        response = self.client.get(reverse('person-detail', args=[person.person_id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Canonical person record with linked external profiles')
+        self.assertContains(response, 'ext-123')
+        self.assertContains(response, 'Raw payload')

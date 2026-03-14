@@ -68,6 +68,11 @@ This repository starts with a Django-first bootstrap because the product is oper
    - upload a CSV and choose the source system
    - inspect per-run failures directly on the page
 
+10. Use the operator pages:
+
+   - people directory: `http://127.0.0.1:8000/people/`
+   - sample CSV template: `http://127.0.0.1:8000/imports/sample.csv`
+
 ## Deploy On Railway
 
 This repo includes a root-level Railway config in `railway.toml` for the Django app.
@@ -109,6 +114,8 @@ Notes:
 - Import run detail: `GET /api/v1/import-runs/{import_run_id}`
 - Staff login: `/login/`
 - Operator home: `/home/`
+- People directory: `/people/`
+- Sample import template: `/imports/sample.csv`
 - Admin: `/admin/`
 
 Example CSV import:

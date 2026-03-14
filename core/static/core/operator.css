@@ -120,7 +120,8 @@ a {
 .actions-grid,
 .list-grid,
 .import-grid,
-.detail-grid {
+.detail-grid,
+.payload-columns {
   display: grid;
   gap: 16px;
 }
@@ -146,6 +147,11 @@ a {
   margin-top: 18px;
 }
 
+.payload-columns {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 14px;
+}
+
 .card,
 .panel,
 .auth-card {
@@ -157,6 +163,10 @@ a {
 .card,
 .panel {
   padding: 20px;
+}
+
+.search-panel {
+  display: grid;
 }
 
 .card-stat {
@@ -322,6 +332,11 @@ input[type="file"] {
   background: #fffdf8;
 }
 
+.search-form {
+  display: grid;
+  gap: 14px;
+}
+
 input[type="file"] {
   padding: 11px 12px;
 }
@@ -375,6 +390,10 @@ input[type="file"] {
 .timeline-block {
   margin-top: 20px;
   padding-top: 6px;
+}
+
+.expectations-block {
+  margin-top: 22px;
 }
 
 .timeline-block p {

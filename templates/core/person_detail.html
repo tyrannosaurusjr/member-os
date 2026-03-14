@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}{{ person.full_name }} | Member OS{% endblock %}
+
+{% block body %}
+  <div class="shell">
+    <div class="site-nav">
+      <a class="brand" href="{% url 'operator-home' %}">Member OS</a>
+      <div class="nav-actions">
+        <a class="button button-secondary" href="{% url 'people-directory' %}">Back to people</a>
+        <a class="button button-secondary" href="/admin/core/person/{{ person.person_id }}/change/">Edit in admin</a>
+        <form class="inline-form" method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button type="submit">Sign out</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="frame">
+      <section class="hero">
+        <div>
+          <span class="eyebrow">Person Detail</span>
+          <h1>{{ person.full_name }}</h1>
+          <p>
+            Canonical person record with linked external profiles and recent snapshot history.
+          </p>
+        </div>
+        <div class="hero-meta">
+          {% if person.primary_email %}
+            <div class="meta-chip">{{ person.primary_email }}</div>
+          {% endif %}
+          {% if person.company %}
+            <div class="meta-chip">{{ person.company }}</div>
+          {% endif %}
+          <div class="meta-chip">{{ external_profile_count }} linked profile{{ external_profile_count|pluralize }}</div>
+        </div>
+      </section>
+
+      <div class="content-grid">
+        <section class="import-grid">
+          <article class="panel">
+            <h2>Canonical fields</h2>
+            <div class="detail-grid">
+              <div class="detail-stat">
+                <span class="eyebrow">Primary Email</span>
+                <p class="detail-value">{% if person.primary_email %}{{ person.primary_email }}{% else %}None{% endif %}</p>
+              </div>
+              <div class="detail-stat">
+                <span class="eyebrow">Primary Phone</span>
+                <p class="detail-value">{% if person.primary_phone %}{{ person.primary_phone }}{% else %}None{% endif %}</p>
+              </div>
+              <div class="detail-stat">
+                <span class="eyebrow">Company</span>
+                <p class="detail-value">{% if person.company %}{{ person.company }}{% else %}None{% endif %}</p>
+              </div>
+              <div class="detail-stat">
+                <span class="eyebrow">Job Title</span>
+                <p class="detail-value">{% if person.job_title %}{{ person.job_title }}{% else %}None{% endif %}</p>
+              </div>
+            </div>
+            <div class="timeline-block">
+              {% if person.secondary_emails %}
+                <p><strong>Secondary emails</strong> {{ person.secondary_emails|join:", " }}</p>
+              {% endif %}
+              {% if person.secondary_phones %}
+                <p><strong>Secondary phones</strong> {{ person.secondary_phones|join:", " }}</p>
+              {% endif %}
+              {% if person.location %}
+                <p><strong>Location</strong> {{ person.location }}</p>
+              {% endif %}
+              {% if person.website %}
+                <p><strong>Website</strong> <a class="run-link" href="{{ person.website }}">{{ person.website }}</a></p>
+              {% endif %}
+              {% if person.linkedin_url %}
+                <p><strong>LinkedIn</strong> <a class="run-link" href="{{ person.linkedin_url }}">{{ person.linkedin_url }}</a></p>
+              {% endif %}
+              {% if person.notes %}
+                <p><strong>Notes</strong> {{ person.notes }}</p>
+              {% endif %}
+            </div>
+          </article>
+
+          <article class="panel">
+            <h2>Linked external profiles</h2>
+            {% if person.external_profiles.all %}
+              <ul class="list">
+                {% for profile in person.external_profiles.all %}
+                  <li>
+                    <div class="pill">{{ profile.get_source_system_display }}</div>
+                    <p><strong>{{ profile.source_record_id }}</strong></p>
+                    <p class="muted">
+                      {{ profile.snapshots.count }} snapshot{{ profile.snapshots.count|pluralize }}
+                      {% if profile.source_last_seen_at %} • last seen {{ profile.source_last_seen_at|date:"Y-m-d H:i:s" }}{% endif %}
+                    </p>
+                    {% if profile.aliases.all %}
+                      <p class="muted">Aliases: {% for alias in profile.aliases.all %}{{ alias.alias_value }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p>No external profiles are linked to this person yet.</p>
+            {% endif %}
+          </article>
+        </section>
+
+        <section class="list-grid">
+          <article class="panel">
+            <h2>Recent snapshots</h2>
+            {% if recent_snapshots %}
+              <ul class="list">
+                {% for snapshot in recent_snapshots %}
+                  <li>
+                    <div class="pill">{{ snapshot.source_system }}</div>
+                    <p><strong>{{ snapshot.source_record_id }}</strong></p>
+                    <p class="muted">
+                      captured {{ snapshot.created_at|date:"Y-m-d H:i:s" }}
+                      {% if snapshot.sync_run_id %} • run {{ snapshot.sync_run_id|slice:":8" }}{% endif %}
+                    </p>
+                    <div class="payload-columns">
+                      <div>
+                        <p><strong>Raw payload</strong></p>
+                        <pre class="payload-block">{{ snapshot.raw_payload_pretty }}</pre>
+                      </div>
+                      <div>
+                        <p><strong>Normalized payload</strong></p>
+                        <pre class="payload-block">{{ snapshot.normalized_payload_pretty }}</pre>
+                      </div>
+                    </div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p>No snapshots are available for this person yet.</p>
+            {% endif %}
+          </article>
+
+          <article class="panel">
+            <h2>Next actions</h2>
+            <ul class="list">
+              <li>
+                <span class="pill">Review</span>
+                <p>Use Django admin when you need to relink profiles or correct canonical person fields directly.</p>
+              </li>
+              <li>
+                <span class="pill">Traceability</span>
+                <p>Recent snapshots below show raw source payloads beside normalized values so you can audit changes.</p>
+              </li>
+            </ul>
+          </article>
+        </section>
+      </div>
+    </div>
+  </div>
+{% endblock %}

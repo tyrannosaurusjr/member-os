@@ -7,6 +7,7 @@
     <div class="site-nav">
       <a class="brand" href="{% url 'operator-home' %}">Member OS</a>
       <div class="nav-actions">
+        <a class="button button-secondary" href="{% url 'people-directory' %}">People</a>
         <a class="button button-secondary" href="{% url 'password_change' %}">Change password</a>
         <a class="button button-secondary" href="/admin/">Open admin</a>
         <form class="inline-form" method="post" action="{% url 'logout' %}">
@@ -63,6 +64,11 @@
             <p class="card-stat">{{ open_merge_candidates_count }}</p>
             <p>Merge candidates still waiting for operator judgment.</p>
           </article>
+          <article class="card">
+            <span class="eyebrow">Unlinked Profiles</span>
+            <p class="card-stat">{{ unlinked_external_profiles_count }}</p>
+            <p>Imported source profiles that are not yet attached to a canonical person.</p>
+          </article>
         </section>
 
         <section class="import-grid">
@@ -99,8 +105,27 @@
               </div>
               <div class="nav-actions">
                 <input type="submit" value="Run import">
+                <a class="button button-secondary" href="{% url 'sample-import-csv-template' %}">Download sample CSV</a>
               </div>
             </form>
+
+            <div class="expectations-block">
+              <h3>Field expectations</h3>
+              <ul class="list compact-list">
+                <li>
+                  <p><strong>Required in practice</strong></p>
+                  <p class="muted">At least one identity hint such as `source_record_id`, email, phone, name, alias, or username.</p>
+                </li>
+                <li>
+                  <p><strong>Good baseline columns</strong></p>
+                  <p class="muted">`source_record_id`, `full_name`, `primary_email`, `primary_phone`, `company`, `job_title`, `notes`.</p>
+                </li>
+                <li>
+                  <p><strong>Normalization</strong></p>
+                  <p class="muted">Emails are lowercased, phones normalized, names whitespace-cleaned, and raw rows preserved append-only.</p>
+                </li>
+              </ul>
+            </div>
           </article>
 
           <article class="panel">
@@ -170,6 +195,12 @@
         </section>
 
         <section class="actions-grid">
+          <a class="action-link" href="{% url 'people-directory' %}">
+            <article class="card">
+              <h3>People Directory</h3>
+              <p>Inspect canonical people, search by name or company, and drill into linked profile history.</p>
+            </article>
+          </a>
           <a class="action-link" href="/admin/">
             <article class="card">
               <h3>Admin Console</h3>

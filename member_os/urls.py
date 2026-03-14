@@ -20,6 +20,9 @@ from django.urls import include, path
 from core.views import (
     OperatorHomeView,
     OperatorRootView,
+    PeopleDirectoryView,
+    PersonDetailView,
+    SampleImportTemplateView,
     StaffLoginView,
     StaffLogoutView,
     StaffPasswordChangeDoneView,
@@ -29,6 +32,9 @@ from core.views import (
 urlpatterns = [
     path('', OperatorRootView.as_view(), name='root'),
     path('home/', OperatorHomeView.as_view(), name='operator-home'),
+    path('imports/sample.csv', SampleImportTemplateView.as_view(), name='sample-import-csv-template'),
+    path('people/', PeopleDirectoryView.as_view(), name='people-directory'),
+    path('people/<uuid:person_id>/', PersonDetailView.as_view(), name='person-detail'),
     path('login/', StaffLoginView.as_view(), name='login'),
     path('logout/', StaffLogoutView.as_view(), name='logout'),
     path(
