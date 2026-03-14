@@ -3,8 +3,8 @@ builder = "RAILPACK"
 buildCommand = "python manage.py collectstatic --noinput"
 
 [deploy]
-preDeployCommand = "python manage.py migrate --noinput"
-startCommand = "sh -c 'gunicorn member_os.wsgi --bind 0.0.0.0:${PORT}'"
+preDeployCommand = "/app/.venv/bin/python manage.py migrate --noinput"
+startCommand = "sh -c '/app/.venv/bin/gunicorn member_os.wsgi --bind 0.0.0.0:${PORT} --access-logfile - --error-logfile - --log-level debug'"
 healthcheckPath = "/api/v1/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
