@@ -71,6 +71,7 @@ What it does:
 Required Railway variables for the app service:
 
 - `DJANGO_SECRET_KEY`
+- `DJANGO_SETTINGS_MODULE=member_os.settings.production`
 - `PGDATABASE=${{Postgres.PGDATABASE}}`
 - `PGUSER=${{Postgres.PGUSER}}`
 - `PGPASSWORD=${{Postgres.PGPASSWORD}}`
@@ -85,7 +86,7 @@ Optional but recommended:
 Notes:
 
 - The app auto-adds `RAILWAY_PUBLIC_DOMAIN` to `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` when Railway provides it.
-- `railway.toml` forces `member_os.settings.production` for build, migrate, and start commands, so you do not need to set `DJANGO_SETTINGS_MODULE` manually on Railway.
+- `DJANGO_SETTINGS_MODULE` should be set on the Railway service itself so the same value is available during build, pre-deploy, and runtime.
 - The legacy `backend/` directory is not used by this Railway config. It targets the Django app at the repository root.
 
 ## Useful Endpoints

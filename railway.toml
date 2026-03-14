@@ -1,10 +1,10 @@
 [build]
 builder = "RAILPACK"
-buildCommand = "DJANGO_SETTINGS_MODULE=member_os.settings.production python manage.py collectstatic --noinput"
+buildCommand = "python manage.py collectstatic --noinput"
 
 [deploy]
-preDeployCommand = "DJANGO_SETTINGS_MODULE=member_os.settings.production python manage.py migrate --noinput"
-startCommand = "DJANGO_SETTINGS_MODULE=member_os.settings.production gunicorn member_os.wsgi --bind 0.0.0.0:$PORT"
+preDeployCommand = "python manage.py migrate --noinput"
+startCommand = "sh -c 'gunicorn member_os.wsgi --bind 0.0.0.0:${PORT}'"
 healthcheckPath = "/api/v1/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
