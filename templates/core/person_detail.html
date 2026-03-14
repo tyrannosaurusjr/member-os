@@ -16,6 +16,14 @@
       </div>
     </div>
 
+    {% if messages %}
+      <ul class="messages">
+        {% for message in messages %}
+          <li class="message">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
     <div class="frame">
       <section class="hero">
         <div>

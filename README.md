@@ -72,6 +72,7 @@ This repository starts with a Django-first bootstrap because the product is oper
 
    - people directory: `http://127.0.0.1:8000/people/`
    - sample CSV template: `http://127.0.0.1:8000/imports/sample.csv`
+   - review queue: `http://127.0.0.1:8000/reviews/`
 
 ## Deploy On Railway
 
@@ -115,6 +116,7 @@ Notes:
 - Staff login: `/login/`
 - Operator home: `/home/`
 - People directory: `/people/`
+- Review queue: `/reviews/`
 - Sample import template: `/imports/sample.csv`
 - Admin: `/admin/`
 

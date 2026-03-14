@@ -19,6 +19,7 @@ from .models import (
     SyncRun,
     SyncRunStatus,
 )
+from .rectification import sync_review_item_for_external_profile
 
 SOURCE_RECORD_ID_KEYS = (
     'source_record_id',
@@ -278,6 +279,7 @@ def import_external_profiles_from_csv(
                     source_hash=source_hash,
                     observed_at=observed_at,
                 )
+                sync_review_item_for_external_profile(profile)
 
                 SyncEvent.objects.create(
                     sync_run=sync_run,

@@ -12,8 +12,13 @@ from .models import (
     ExternalProfileGroupObservation,
     ExternalProfileSnapshot,
     FieldSourcePriority,
+    MergeAuditLog,
     MergeCandidate,
     Person,
+    ProfileSyncStatus,
+    ReviewItemType,
+    ReviewQueueItem,
+    ReviewQueueStatus,
     SourceSystem,
     SyncDirection,
     SyncEvent,
@@ -260,6 +265,23 @@ class CsvImportApiTests(TestCase):
             'Jane Smith',
         )
         self.assertEqual(ExternalProfileSnapshot.objects.count(), 2)
+
+    def test_csv_import_creates_open_profile_review_items_for_unlinked_profiles(self):
+        self.login_staff()
+
+        response = self.post_csv(
+            'source_record_id,full_name,primary_email\n'
+            'ext-1,Jane Smith,jane@example.com\n'
+        )
+
+        self.assertEqual(response.status_code, 201)
+        review_item = ReviewQueueItem.objects.get()
+        self.assertEqual(review_item.item_type, ReviewItemType.PROFILE_LINK_REVIEW)
+        self.assertEqual(review_item.status, ReviewQueueStatus.OPEN)
+        self.assertEqual(
+            review_item.related_external_profile.source_record_id,
+            'ext-1',
+        )
 
     def test_csv_import_reports_row_level_failures_without_stopping_import(self):
         self.login_staff()
@@ -562,3 +584,109 @@ class OperatorAuthTests(TestCase):
         self.assertContains(response, 'Canonical person record with linked external profiles')
         self.assertContains(response, 'ext-123')
         self.assertContains(response, 'Raw payload')
+
+    def test_review_queue_lists_open_profile_link_items(self):
+        self.client.force_login(self.staff_user)
+        profile = ExternalProfile.objects.create(
+            source_system=SourceSystem.MANUAL_CSV,
+            source_record_id='ext-review-1',
+            source_payload_json={'full_name': 'Queued Person'},
+        )
+        ReviewQueueItem.objects.create(
+            item_type=ReviewItemType.PROFILE_LINK_REVIEW,
+            related_external_profile=profile,
+            title='Link or create person for Queued Person',
+            status=ReviewQueueStatus.OPEN,
+        )
+
+        response = self.client.get(reverse('review-queue'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Profiles waiting for operator judgment.')
+        self.assertContains(response, 'Queued Person')
+
+    def test_profile_review_create_person_action_creates_person_and_resolves_review_item(self):
+        self.client.force_login(self.staff_user)
+        profile = ExternalProfile.objects.create(
+            source_system=SourceSystem.MANUAL_CSV,
+            source_record_id='ext-create-1',
+            source_payload_json={
+                'full_name': 'Created Person',
+                'primary_email': 'created@example.com',
+                'company': 'Acme Ventures',
+            },
+        )
+        ExternalProfileSnapshot.objects.create(
+            external_profile=profile,
+            raw_payload_json=profile.source_payload_json,
+            normalized_payload_json=profile.source_payload_json,
+        )
+        review_item = ReviewQueueItem.objects.create(
+            item_type=ReviewItemType.PROFILE_LINK_REVIEW,
+            related_external_profile=profile,
+            title='Link or create person for Created Person',
+            status=ReviewQueueStatus.OPEN,
+        )
+
+        response = self.client.post(
+            reverse('profile-create-person', args=[profile.external_profile_id]),
+            follow=True,
+        )
+
+        profile.refresh_from_db()
+        review_item.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Person.objects.count(), 1)
+        person = Person.objects.get()
+        self.assertEqual(person.full_name, 'Created Person')
+        self.assertEqual(profile.person, person)
+        self.assertEqual(profile.sync_status, ProfileSyncStatus.SYNCED)
+        self.assertEqual(review_item.status, ReviewQueueStatus.RESOLVED)
+        self.assertEqual(MergeAuditLog.objects.count(), 1)
+        self.assertContains(response, 'Created canonical person Created Person')
+
+    def test_profile_review_link_person_action_links_existing_person_and_resolves_review_item(self):
+        self.client.force_login(self.staff_user)
+        person = Person.objects.create(
+            full_name='Jane Smith',
+            primary_email='jane@example.com',
+        )
+        profile = ExternalProfile.objects.create(
+            source_system=SourceSystem.MANUAL_CSV,
+            source_record_id='ext-link-1',
+            source_payload_json={
+                'full_name': 'Jane Smith',
+                'primary_email': 'jane@example.com',
+                'company': 'Acme Ventures',
+            },
+        )
+        ExternalProfileSnapshot.objects.create(
+            external_profile=profile,
+            raw_payload_json=profile.source_payload_json,
+            normalized_payload_json=profile.source_payload_json,
+        )
+        review_item = ReviewQueueItem.objects.create(
+            item_type=ReviewItemType.PROFILE_LINK_REVIEW,
+            related_external_profile=profile,
+            title='Link or create person for Jane Smith',
+            status=ReviewQueueStatus.OPEN,
+        )
+
+        response = self.client.post(
+            reverse('profile-link-person', args=[profile.external_profile_id]),
+            {'person_id': str(person.person_id)},
+            follow=True,
+        )
+
+        profile.refresh_from_db()
+        person.refresh_from_db()
+        review_item.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(profile.person, person)
+        self.assertEqual(profile.sync_status, ProfileSyncStatus.SYNCED)
+        self.assertEqual(person.company, 'Acme Ventures')
+        self.assertEqual(review_item.status, ReviewQueueStatus.RESOLVED)
+        self.assertEqual(MergeAuditLog.objects.count(), 1)
+        self.assertContains(response, 'Linked Manual CSV profile ext-link-1 to Jane Smith.')

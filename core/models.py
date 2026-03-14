@@ -118,6 +118,7 @@ class ReviewItemType(models.TextChoices):
     SYNC_ERROR = 'sync_error', 'Sync Error'
     UNKNOWN_WHATSAPP_IDENTITY = 'unknown_whatsapp_identity', 'Unknown WhatsApp Identity'
     ALIAS_CONFLICT = 'alias_conflict', 'Alias Conflict'
+    PROFILE_LINK_REVIEW = 'profile_link_review', 'Profile Link Review'
 
 
 class ReviewSeverity(models.TextChoices):

@@ -8,6 +8,7 @@
       <a class="brand" href="{% url 'operator-home' %}">Member OS</a>
       <div class="nav-actions">
         <a class="button button-secondary" href="{% url 'people-directory' %}">People</a>
+        <a class="button button-secondary" href="{% url 'review-queue' %}">Review queue</a>
         <a class="button button-secondary" href="{% url 'password_change' %}">Change password</a>
         <a class="button button-secondary" href="/admin/">Open admin</a>
         <form class="inline-form" method="post" action="{% url 'logout' %}">
@@ -68,6 +69,11 @@
             <span class="eyebrow">Unlinked Profiles</span>
             <p class="card-stat">{{ unlinked_external_profiles_count }}</p>
             <p>Imported source profiles that are not yet attached to a canonical person.</p>
+          </article>
+          <article class="card">
+            <span class="eyebrow">Open Review Queue</span>
+            <p class="card-stat">{{ open_profile_review_count }}</p>
+            <p>Profiles currently waiting for link-or-create operator review.</p>
           </article>
         </section>
 
@@ -199,6 +205,12 @@
             <article class="card">
               <h3>People Directory</h3>
               <p>Inspect canonical people, search by name or company, and drill into linked profile history.</p>
+            </article>
+          </a>
+          <a class="action-link" href="{% url 'review-queue' %}">
+            <article class="card">
+              <h3>Review Queue</h3>
+              <p>Work through unlinked imported profiles with suggested matches and rectification actions.</p>
             </article>
           </a>
           <a class="action-link" href="/admin/">

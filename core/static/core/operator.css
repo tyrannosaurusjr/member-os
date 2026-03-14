@@ -246,6 +246,14 @@ a {
   gap: 10px;
 }
 
+.action-stack {
+  margin-top: 14px;
+}
+
+.action-stack form {
+  margin: 0;
+}
+
 .button,
 button,
 input[type="submit"] {

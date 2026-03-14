@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Review Queue | Member OS{% endblock %}
+
+{% block body %}
+  <div class="shell">
+    <div class="site-nav">
+      <a class="brand" href="{% url 'operator-home' %}">Member OS</a>
+      <div class="nav-actions">
+        <a class="button button-secondary" href="{% url 'operator-home' %}">Home</a>
+        <a class="button button-secondary" href="{% url 'people-directory' %}">People</a>
+        <a class="button button-secondary" href="/admin/">Open admin</a>
+        <form class="inline-form" method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button type="submit">Sign out</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="frame">
+      <section class="hero">
+        <div>
+          <span class="eyebrow">Rectification Queue</span>
+          <h1>Profiles waiting for operator judgment.</h1>
+          <p>
+            These imported source profiles are still unlinked. Review them, create a canonical
+            person, or attach them to an existing record.
+          </p>
+        </div>
+        <div class="hero-meta">
+          <div class="meta-chip">Open items: {{ queue_entries|length }}</div>
+        </div>
+      </section>
+
+      <div class="content-grid">
+        <section class="list-grid">
+          <article class="panel">
+            <h2>Open queue</h2>
+            {% if queue_entries %}
+              <ul class="list">
+                {% for entry in queue_entries %}
+                  <li>
+                    <div class="pill">{{ entry.profile.get_source_system_display }}</div>
+                    <p><strong>{{ entry.preview.name }}</strong></p>
+                    <p class="muted">
+                      {{ entry.profile.source_record_id }}
+                      {% if entry.preview.email %} • {{ entry.preview.email }}{% endif %}
+                      {% if entry.preview.company %} • {{ entry.preview.company }}{% endif %}
+                    </p>
+                    {% if entry.suggestions %}
+                      <p class="muted">{{ entry.suggestions|length }} suggestion{{ entry.suggestions|pluralize }} available</p>
+                    {% else %}
+                      <p class="muted">No strong suggestions yet</p>
+                    {% endif %}
+                    <p><a class="run-link" href="{% url 'profile-review' entry.profile.external_profile_id %}">Review profile</a></p>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p>The review queue is empty right now.</p>
+            {% endif %}
+          </article>
+
+          <article class="panel">
+            <h2>What this queue does</h2>
+            <ul class="list">
+              <li>
+                <span class="pill">Create</span>
+                <p>Create a canonical person from an unlinked source profile using the latest normalized payload.</p>
+              </li>
+              <li>
+                <span class="pill">Link</span>
+                <p>Attach a source profile to an existing person and backfill missing canonical fields conservatively.</p>
+              </li>
+              <li>
+                <span class="pill">Audit</span>
+                <p>Every rectification action writes a merge audit log and resolves the profile review item.</p>
+              </li>
+            </ul>
+          </article>
+        </section>
+      </div>
+    </div>
+  </div>
+{% endblock %}

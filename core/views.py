@@ -28,6 +28,16 @@ from .models import (
     SourceSystem,
     SyncDirection,
     SyncRun,
+    ReviewItemType,
+    ReviewQueueItem,
+    ReviewQueueStatus,
+)
+from .rectification import (
+    create_person_from_external_profile,
+    find_person_suggestions_for_profile,
+    get_profile_preview,
+    link_external_profile_to_person,
+    sync_review_item_for_external_profile,
 )
 
 SAMPLE_IMPORT_TEMPLATE_HEADERS = [
@@ -154,6 +164,10 @@ class OperatorHomeView(StaffRequiredMixin, TemplateView):
                 'unlinked_external_profiles_count': ExternalProfile.objects.filter(
                     person__isnull=True
                 ).count(),
+                'open_profile_review_count': ReviewQueueItem.objects.filter(
+                    item_type=ReviewItemType.PROFILE_LINK_REVIEW,
+                    status__in=[ReviewQueueStatus.OPEN, ReviewQueueStatus.IN_PROGRESS],
+                ).count(),
                 'recent_import_runs': recent_import_runs,
                 'selected_import_run': (
                     serialize_import_run(selected_import_run)
@@ -250,12 +264,28 @@ class PeopleDirectoryView(StaffRequiredMixin, ListView):
                 'unlinked_external_profiles_count': ExternalProfile.objects.filter(
                     person__isnull=True
                 ).count(),
-                'recent_unlinked_profiles': ExternalProfile.objects.filter(
-                    person__isnull=True
-                ).order_by('-updated_at')[:8],
+                'open_profile_review_count': ReviewQueueItem.objects.filter(
+                    item_type=ReviewItemType.PROFILE_LINK_REVIEW,
+                    status__in=[ReviewQueueStatus.OPEN, ReviewQueueStatus.IN_PROGRESS],
+                ).count(),
+                'recent_unlinked_profiles': [
+                    self.build_unlinked_profile_context(profile)
+                    for profile in ExternalProfile.objects.filter(person__isnull=True)
+                    .prefetch_related('snapshots')
+                    .order_by('-updated_at')[:8]
+                ],
             }
         )
         return context
+
+    def build_unlinked_profile_context(self, profile):
+        preview = get_profile_preview(profile)
+        suggestions = find_person_suggestions_for_profile(profile, limit=3)
+        return {
+            'profile': profile,
+            'preview': preview,
+            'suggestions': suggestions,
+        }
 
 
 class PersonDetailView(StaffRequiredMixin, DetailView):
@@ -314,6 +344,118 @@ class PersonDetailView(StaffRequiredMixin, DetailView):
             }
         )
         return context
+
+
+class ReviewQueueView(StaffRequiredMixin, TemplateView):
+    template_name = 'core/review_queue.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        queue_entries = []
+        review_items = (
+            ReviewQueueItem.objects.filter(
+                item_type=ReviewItemType.PROFILE_LINK_REVIEW,
+                status__in=[ReviewQueueStatus.OPEN, ReviewQueueStatus.IN_PROGRESS],
+            )
+            .select_related('related_external_profile')
+            .order_by('-created_at')
+        )
+        for review_item in review_items:
+            profile = review_item.related_external_profile
+            if profile is None:
+                continue
+            queue_entries.append(
+                {
+                    'review_item': review_item,
+                    'profile': profile,
+                    'preview': get_profile_preview(profile),
+                    'suggestions': find_person_suggestions_for_profile(profile, limit=3),
+                }
+            )
+
+        context['queue_entries'] = queue_entries
+        return context
+
+
+class ExternalProfileReviewView(StaffRequiredMixin, DetailView):
+    template_name = 'core/profile_review.html'
+    context_object_name = 'profile'
+    slug_field = 'external_profile_id'
+    slug_url_kwarg = 'external_profile_id'
+
+    def get_queryset(self):
+        return ExternalProfile.objects.prefetch_related('snapshots', 'aliases')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        profile = context['profile']
+        sync_review_item_for_external_profile(profile)
+        preview = get_profile_preview(profile)
+        query = (self.request.GET.get('q') or '').strip()
+        search_results = Person.objects.none()
+        if query:
+            search_results = (
+                Person.objects.filter(
+                    Q(full_name__icontains=query)
+                    | Q(primary_email__icontains=query)
+                    | Q(company__icontains=query)
+                    | Q(job_title__icontains=query)
+                )
+                .order_by('full_name')[:12]
+            )
+        context.update(
+            {
+                'preview': preview,
+                'suggestions': find_person_suggestions_for_profile(profile, limit=5),
+                'search_query': query,
+                'search_results': search_results,
+                'raw_payload_pretty': json.dumps(
+                    preview['raw_payload'],
+                    indent=2,
+                    sort_keys=True,
+                ),
+                'normalized_payload_pretty': json.dumps(
+                    preview['normalized_payload'],
+                    indent=2,
+                    sort_keys=True,
+                ),
+            }
+        )
+        return context
+
+
+class ExternalProfileCreatePersonView(StaffRequiredMixin, View):
+    def post(self, request, external_profile_id):
+        profile = get_object_or_404(ExternalProfile, external_profile_id=external_profile_id)
+        person = create_person_from_external_profile(
+            profile,
+            performed_by=request.user.get_username(),
+        )
+        messages.success(
+            request,
+            f'Created canonical person {person.full_name} from {profile.get_source_system_display()} profile {profile.source_record_id}.',
+        )
+        return redirect(reverse_lazy('person-detail', kwargs={'person_id': person.person_id}))
+
+
+class ExternalProfileLinkToPersonView(StaffRequiredMixin, View):
+    def post(self, request, external_profile_id):
+        profile = get_object_or_404(ExternalProfile, external_profile_id=external_profile_id)
+        person_id = request.POST.get('person_id')
+        person = get_object_or_404(Person, person_id=person_id)
+        link_external_profile_to_person(
+            profile,
+            person,
+            performed_by=request.user.get_username(),
+        )
+        messages.success(
+            request,
+            f'Linked {profile.get_source_system_display()} profile {profile.source_record_id} to {person.full_name}.',
+        )
+        next_url = request.POST.get('next')
+        if next_url:
+            return redirect(next_url)
+        return redirect(reverse_lazy('person-detail', kwargs={'person_id': person.person_id}))
 
 
 class StaffPasswordChangeView(StaffRequiredMixin, PasswordChangeView):

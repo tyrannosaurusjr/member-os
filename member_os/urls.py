@@ -18,10 +18,14 @@ from django.contrib import admin
 from django.urls import include, path
 
 from core.views import (
+    ExternalProfileCreatePersonView,
+    ExternalProfileLinkToPersonView,
+    ExternalProfileReviewView,
     OperatorHomeView,
     OperatorRootView,
     PeopleDirectoryView,
     PersonDetailView,
+    ReviewQueueView,
     SampleImportTemplateView,
     StaffLoginView,
     StaffLogoutView,
@@ -35,6 +39,22 @@ urlpatterns = [
     path('imports/sample.csv', SampleImportTemplateView.as_view(), name='sample-import-csv-template'),
     path('people/', PeopleDirectoryView.as_view(), name='people-directory'),
     path('people/<uuid:person_id>/', PersonDetailView.as_view(), name='person-detail'),
+    path('reviews/', ReviewQueueView.as_view(), name='review-queue'),
+    path(
+        'profiles/<uuid:external_profile_id>/review/',
+        ExternalProfileReviewView.as_view(),
+        name='profile-review',
+    ),
+    path(
+        'profiles/<uuid:external_profile_id>/create-person/',
+        ExternalProfileCreatePersonView.as_view(),
+        name='profile-create-person',
+    ),
+    path(
+        'profiles/<uuid:external_profile_id>/link-person/',
+        ExternalProfileLinkToPersonView.as_view(),
+        name='profile-link-person',
+    ),
     path('login/', StaffLoginView.as_view(), name='login'),
     path('logout/', StaffLogoutView.as_view(), name='logout'),
     path(

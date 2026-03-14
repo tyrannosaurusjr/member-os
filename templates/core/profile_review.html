@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Profile Review | Member OS{% endblock %}
+
+{% block body %}
+  <div class="shell">
+    <div class="site-nav">
+      <a class="brand" href="{% url 'operator-home' %}">Member OS</a>
+      <div class="nav-actions">
+        <a class="button button-secondary" href="{% url 'review-queue' %}">Back to queue</a>
+        <a class="button button-secondary" href="{% url 'people-directory' %}">People</a>
+        <a class="button button-secondary" href="/admin/core/externalprofile/{{ profile.external_profile_id }}/change/">Open in admin</a>
+        <form class="inline-form" method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button type="submit">Sign out</button>
+        </form>
+      </div>
+    </div>
+
+    {% if messages %}
+      <ul class="messages">
+        {% for message in messages %}
+          <li class="message">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    <div class="frame">
+      <section class="hero">
+        <div>
+          <span class="eyebrow">Profile Review</span>
+          <h1>{{ preview.name }}</h1>
+          <p>
+            Source profile {{ profile.source_record_id }} from {{ profile.get_source_system_display }}.
+            Use this page to create a canonical person or link the profile to an existing person.
+          </p>
+        </div>
+        <div class="hero-meta">
+          {% if preview.email %}<div class="meta-chip">{{ preview.email }}</div>{% endif %}
+          {% if preview.company %}<div class="meta-chip">{{ preview.company }}</div>{% endif %}
+          <div class="meta-chip">Snapshots: {{ profile.snapshots.count }}</div>
+        </div>
+      </section>
+
+      <div class="content-grid">
+        <section class="import-grid">
+          <article class="panel">
+            <h2>Profile preview</h2>
+            <div class="detail-grid">
+              <div class="detail-stat">
+                <span class="eyebrow">Email</span>
+                <p class="detail-value">{% if preview.email %}{{ preview.email }}{% else %}None{% endif %}</p>
+              </div>
+              <div class="detail-stat">
+                <span class="eyebrow">Phone</span>
+                <p class="detail-value">{% if preview.phone %}{{ preview.phone }}{% else %}None{% endif %}</p>
+              </div>
+              <div class="detail-stat">
+                <span class="eyebrow">Company</span>
+                <p class="detail-value">{% if preview.company %}{{ preview.company }}{% else %}None{% endif %}</p>
+              </div>
+              <div class="detail-stat">
+                <span class="eyebrow">Job Title</span>
+                <p class="detail-value">{% if preview.job_title %}{{ preview.job_title }}{% else %}None{% endif %}</p>
+              </div>
+            </div>
+
+            <div class="nav-actions action-stack">
+              <form method="post" action="{% url 'profile-create-person' profile.external_profile_id %}">
+                {% csrf_token %}
+                <button type="submit">Create canonical person</button>
+              </form>
+            </div>
+
+            <div class="payload-columns">
+              <div>
+                <p><strong>Raw payload</strong></p>
+                <pre class="payload-block">{{ raw_payload_pretty }}</pre>
+              </div>
+              <div>
+                <p><strong>Normalized payload</strong></p>
+                <pre class="payload-block">{{ normalized_payload_pretty }}</pre>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <h2>Suggested matches</h2>
+            {% if suggestions %}
+              <ul class="list">
+                {% for suggestion in suggestions %}
+                  <li>
+                    <div class="pill">Score {{ suggestion.score }}</div>
+                    <p><strong>{{ suggestion.full_name }}</strong></p>
+                    <p class="muted">
+                      {% if suggestion.primary_email %}{{ suggestion.primary_email }}{% else %}No primary email{% endif %}
+                      {% if suggestion.company %} • {{ suggestion.company }}{% endif %}
+                    </p>
+                    <p class="muted">{{ suggestion.reasons|join:", " }}</p>
+                    <div class="nav-actions action-stack">
+                      <form method="post" action="{% url 'profile-link-person' profile.external_profile_id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="person_id" value="{{ suggestion.person_id }}">
+                        <input type="hidden" name="next" value="{% url 'person-detail' suggestion.person_id %}">
+                        <button type="submit">Link to {{ suggestion.full_name }}</button>
+                      </form>
+                    </div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p>No strong automatic suggestions are available yet.</p>
+            {% endif %}
+          </article>
+        </section>
+
+        <section class="list-grid">
+          <article class="panel">
+            <h2>Search existing people</h2>
+            <form method="get" class="search-form">
+              <div class="field-group">
+                <label for="profile-person-search">Search canonical people</label>
+                <input id="profile-person-search" type="text" name="q" value="{{ search_query }}" placeholder="Name, email, company">
+              </div>
+              <div class="nav-actions">
+                <input type="submit" value="Search">
+              </div>
+            </form>
+
+            {% if search_query and search_results %}
+              <ul class="list">
+                {% for person in search_results %}
+                  <li>
+                    <p><strong>{{ person.full_name }}</strong></p>
+                    <p class="muted">
+                      {% if person.primary_email %}{{ person.primary_email }}{% endif %}
+                      {% if person.company %} • {{ person.company }}{% endif %}
+                    </p>
+                    <div class="nav-actions action-stack">
+                      <form method="post" action="{% url 'profile-link-person' profile.external_profile_id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="person_id" value="{{ person.person_id }}">
+                        <button type="submit">Link to this person</button>
+                      </form>
+                    </div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% elif search_query %}
+              <p>No people matched that search.</p>
+            {% endif %}
+          </article>
+
+          <article class="panel">
+            <h2>Profile metadata</h2>
+            <ul class="list">
+              <li>
+                <span class="pill">Source</span>
+                <p>{{ profile.get_source_system_display }} • {{ profile.source_record_id }}</p>
+              </li>
+              <li>
+                <span class="pill">Status</span>
+                <p>{{ profile.get_sync_status_display }}</p>
+              </li>
+              <li>
+                <span class="pill">Snapshots</span>
+                <p>{{ profile.snapshots.count }} recorded snapshot{{ profile.snapshots.count|pluralize }}</p>
+              </li>
+            </ul>
+          </article>
+        </section>
+      </div>
+    </div>
+  </div>
+{% endblock %}
