@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -22,15 +23,67 @@ def env_list(name: str, default: list[str] | None = None) -> list[str]:
     return [item.strip() for item in value.split(',') if item.strip()]
 
 
+def env_first(*names: str, default: str | None = None) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            return value
+    return default
+
+
+def append_unique(values: list[str], value: str | None):
+    if value and value not in values:
+        values.append(value)
+
+
+def normalize_host(value: str | None) -> str | None:
+    if not value:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    if '://' in normalized:
+        parsed = urlparse(normalized)
+        normalized = parsed.netloc or parsed.path
+    normalized = normalized.split('/', 1)[0]
+    return normalized.split(':', 1)[0].strip() or None
+
+
+def normalize_origin(value: str | None) -> str | None:
+    if not value:
+        return None
+    normalized = value.strip().rstrip('/')
+    if not normalized:
+        return None
+    if '://' in normalized:
+        parsed = urlparse(normalized)
+        if parsed.scheme and parsed.netloc:
+            return f'{parsed.scheme}://{parsed.netloc}'
+        return None
+
+    host = normalize_host(normalized)
+    if not host:
+        return None
+    return f'https://{host}'
+
+
 SECRET_KEY = os.getenv(
     'DJANGO_SECRET_KEY', 'django-insecure-dev-secret-key-change-me'
 )
 DEBUG = env_bool('DJANGO_DEBUG', False)
 ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', ['127.0.0.1', 'localhost'])
+append_unique(ALLOWED_HOSTS, normalize_host(os.getenv('RAILWAY_PUBLIC_DOMAIN')))
+append_unique(ALLOWED_HOSTS, normalize_host(os.getenv('RAILWAY_PRIVATE_DOMAIN')))
+
 CSRF_TRUSTED_ORIGINS = env_list('DJANGO_CSRF_TRUSTED_ORIGINS', [])
+append_unique(
+    CSRF_TRUSTED_ORIGINS,
+    normalize_origin(os.getenv('RAILWAY_PUBLIC_DOMAIN')),
+)
 
 INSTALLED_APPS = [
     'django.contrib.postgres',
+    'whitenoise.runserver_nostatic',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -42,6 +95,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -73,11 +127,15 @@ ASGI_APPLICATION = 'member_os.asgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('POSTGRES_DB', 'member_os'),
-        'USER': os.getenv('POSTGRES_USER', 'member_os'),
-        'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'member_os'),
-        'HOST': os.getenv('POSTGRES_HOST', '127.0.0.1'),
-        'PORT': os.getenv('POSTGRES_PORT', '5432'),
+        'NAME': env_first('POSTGRES_DB', 'PGDATABASE', default='member_os'),
+        'USER': env_first('POSTGRES_USER', 'PGUSER', default='member_os'),
+        'PASSWORD': env_first(
+            'POSTGRES_PASSWORD',
+            'PGPASSWORD',
+            default='member_os',
+        ),
+        'HOST': env_first('POSTGRES_HOST', 'PGHOST', default='127.0.0.1'),
+        'PORT': env_first('POSTGRES_PORT', 'PGPORT', default='5432'),
         'CONN_MAX_AGE': int(os.getenv('POSTGRES_CONN_MAX_AGE', '60')),
     }
 }
@@ -102,7 +160,12 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STORAGES = {
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

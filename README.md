@@ -56,6 +56,38 @@ This repository starts with a Django-first bootstrap because the product is oper
    python manage.py runserver
    ```
 
+## Deploy On Railway
+
+This repo includes a root-level Railway config in `railway.toml` for the Django app.
+
+What it does:
+
+- builds with Railpack
+- runs `collectstatic` during the build
+- runs `migrate` before each deploy
+- starts Gunicorn on Railway's injected `PORT`
+- uses `/api/v1/health` as the healthcheck path
+
+Required Railway variables for the app service:
+
+- `DJANGO_SECRET_KEY`
+- `PGDATABASE=${{Postgres.PGDATABASE}}`
+- `PGUSER=${{Postgres.PGUSER}}`
+- `PGPASSWORD=${{Postgres.PGPASSWORD}}`
+- `PGHOST=${{Postgres.PGHOST}}`
+- `PGPORT=${{Postgres.PGPORT}}`
+
+Optional but recommended:
+
+- `DJANGO_ALLOWED_HOSTS` for any custom domains
+- `DJANGO_CSRF_TRUSTED_ORIGINS` for any custom domains
+
+Notes:
+
+- The app auto-adds `RAILWAY_PUBLIC_DOMAIN` to `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` when Railway provides it.
+- `railway.toml` forces `member_os.settings.production` for build, migrate, and start commands, so you do not need to set `DJANGO_SETTINGS_MODULE` manually on Railway.
+- The legacy `backend/` directory is not used by this Railway config. It targets the Django app at the repository root.
+
 ## Useful Endpoints
 
 - Health check: `GET /api/v1/health`

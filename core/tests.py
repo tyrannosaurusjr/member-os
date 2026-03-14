@@ -1,3 +1,4 @@
+from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase, TestCase
@@ -8,11 +9,15 @@ from .models import (
     CanonicalMembershipTier,
     ExternalProfile,
     ExternalProfileAlias,
+    ExternalProfileGroupObservation,
+    ExternalProfileSnapshot,
     FieldSourcePriority,
     MergeCandidate,
     Person,
     SourceSystem,
+    SyncDirection,
     SyncRun,
+    SyncRunStatus,
 )
 
 
@@ -150,15 +155,53 @@ class CoreModelConstraintTests(TestCase):
                     confidence_score=90,
                 )
 
+    def test_group_observation_string_falls_back_to_external_profile_id(self):
+        profile = ExternalProfile.objects.create(
+            source_system=SourceSystem.WHATSAPP,
+            source_record_id='+819012345678',
+        )
+        observation = ExternalProfileGroupObservation.objects.create(
+            external_profile=profile,
+        )
+
+        self.assertEqual(str(observation), str(profile.external_profile_id))
+
 
 class CsvImportApiTests(TestCase):
-    def post_csv(self, csv_text: str, source_system: str = SourceSystem.MANUAL_CSV):
+    def setUp(self):
+        user_model = get_user_model()
+        self.staff_user = user_model.objects.create_user(
+            username='staff-user',
+            email='staff@example.com',
+            password='not-used',
+            is_staff=True,
+        )
+        self.non_staff_user = user_model.objects.create_user(
+            username='member-user',
+            email='member@example.com',
+            password='not-used',
+        )
+
+    def login_staff(self):
+        self.client.force_login(self.staff_user)
+
+    def login_non_staff(self):
+        self.client.force_login(self.non_staff_user)
+
+    def post_csv(
+        self,
+        csv_text: str,
+        source_system: str = SourceSystem.MANUAL_CSV,
+        *,
+        client=None,
+    ):
         uploaded_file = SimpleUploadedFile(
             'contacts.csv',
             csv_text.encode('utf-8'),
             content_type='text/csv',
         )
-        return self.client.post(
+        request_client = client or self.client
+        return request_client.post(
             reverse('external-profiles-import-csv'),
             {
                 'file': uploaded_file,
@@ -166,7 +209,31 @@ class CsvImportApiTests(TestCase):
             },
         )
 
+    def test_csv_import_requires_authentication(self):
+        response = self.post_csv(
+            'source_record_id,full_name\n'
+            'ext-1,Jane Smith\n'
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(), {'error': 'authentication required'})
+        self.assertEqual(ExternalProfile.objects.count(), 0)
+
+    def test_csv_import_requires_staff_access(self):
+        self.login_non_staff()
+
+        response = self.post_csv(
+            'source_record_id,full_name\n'
+            'ext-1,Jane Smith\n'
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json(), {'error': 'staff access required'})
+        self.assertEqual(ExternalProfile.objects.count(), 0)
+
     def test_csv_import_creates_external_profiles_and_summary(self):
+        self.login_staff()
+
         response = self.post_csv(
             'source_record_id,full_name,primary_email\n'
             'ext-1,Jane Smith,jane@example.com\n'
@@ -190,8 +257,11 @@ class CsvImportApiTests(TestCase):
             ],
             'Jane Smith',
         )
+        self.assertEqual(ExternalProfileSnapshot.objects.count(), 2)
 
     def test_csv_import_reports_row_level_failures_without_stopping_import(self):
+        self.login_staff()
+
         response = self.post_csv(
             'full_name,notes,phone\n'
             'Jane Smith,,+14155550100\n'
@@ -211,7 +281,23 @@ class CsvImportApiTests(TestCase):
         self.assertEqual(len(import_run_response.json()['failures']), 1)
         self.assertEqual(import_run_response.json()['failures'][0]['row_number'], 3)
 
-    def test_csv_import_is_idempotent_when_source_record_id_repeats(self):
+    def test_import_run_detail_requires_authentication(self):
+        self.login_staff()
+        sync_run = SyncRun.objects.create(
+            source_system=SourceSystem.MANUAL_CSV,
+            direction=SyncDirection.INBOUND,
+            status=SyncRunStatus.COMPLETED,
+        )
+        self.client.logout()
+
+        response = self.client.get(reverse('import-run-detail', args=[sync_run.sync_run_id]))
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(), {'error': 'authentication required'})
+
+    def test_csv_import_preserves_snapshot_history_when_source_record_id_repeats(self):
+        self.login_staff()
+
         first_response = self.post_csv(
             'source_record_id,full_name\n'
             'ext-1,Jane Smith\n'
@@ -224,14 +310,42 @@ class CsvImportApiTests(TestCase):
         self.assertEqual(first_response.status_code, 201)
         self.assertEqual(second_response.status_code, 201)
         self.assertEqual(ExternalProfile.objects.count(), 1)
+        profile = ExternalProfile.objects.get(source_record_id='ext-1')
+        self.assertEqual(profile.source_payload_json['full_name'], 'Jane A. Smith')
+
+        snapshots = list(profile.snapshots.order_by('created_at'))
+        self.assertEqual(len(snapshots), 2)
+        self.assertEqual(snapshots[0].raw_payload_json['full_name'], 'Jane Smith')
+        self.assertEqual(snapshots[1].raw_payload_json['full_name'], 'Jane A. Smith')
+
+    def test_csv_import_normalizes_identity_fields_before_deriving_source_record_id(self):
+        self.login_staff()
+
+        first_response = self.post_csv(
+            'full_name,primary_email\n'
+            'Jane Smith,  Jane.Smith@Example.COM  \n'
+        )
+        second_response = self.post_csv(
+            'name,email\n'
+            'Jane Smith,jane.smith@example.com\n'
+        )
+
+        self.assertEqual(first_response.status_code, 201)
+        self.assertEqual(second_response.status_code, 201)
+        self.assertEqual(ExternalProfile.objects.count(), 1)
+        profile = ExternalProfile.objects.get()
+        self.assertEqual(profile.source_record_id, 'jane.smith@example.com')
+        self.assertEqual(profile.snapshots.count(), 2)
         self.assertEqual(
-            ExternalProfile.objects.get(source_record_id='ext-1').source_payload_json[
-                'full_name'
+            profile.snapshots.order_by('created_at').first().normalized_payload_json[
+                'primary_email'
             ],
-            'Jane A. Smith',
+            'jane.smith@example.com',
         )
 
     def test_csv_import_rejects_unknown_source_system(self):
+        self.login_staff()
+
         response = self.post_csv(
             'source_record_id,full_name\n'
             'ext-1,Jane Smith\n',

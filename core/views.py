@@ -1,3 +1,5 @@
+from functools import wraps
+
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET
@@ -6,12 +8,26 @@ from django.views.decorators.http import require_POST
 from .imports import CsvImportError, import_external_profiles_from_csv, serialize_import_run
 from .models import SourceSystem, SyncDirection, SyncRun
 
+
+def staff_api_required(view_func):
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'authentication required'}, status=401)
+        if not request.user.is_staff:
+            return JsonResponse({'error': 'staff access required'}, status=403)
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped
+
+
 @require_GET
 def health(_request):
     return JsonResponse({'status': 'ok'})
 
 
 @require_POST
+@staff_api_required
 def import_external_profiles_csv(request):
     uploaded_file = request.FILES.get('file')
     if uploaded_file is None:
@@ -36,6 +52,7 @@ def import_external_profiles_csv(request):
 
 
 @require_GET
+@staff_api_required
 def import_run_detail(_request, sync_run_id):
     sync_run = get_object_or_404(
         SyncRun,

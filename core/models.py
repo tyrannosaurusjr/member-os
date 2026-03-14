@@ -325,6 +325,42 @@ class ExternalProfile(TimestampedModel):
         return f'{self.source_system}:{self.source_record_id}'
 
 
+class ExternalProfileSnapshot(CreatedAtModel):
+    external_profile_snapshot_id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    external_profile = models.ForeignKey(
+        ExternalProfile,
+        on_delete=models.CASCADE,
+        related_name='snapshots',
+    )
+    sync_run = models.ForeignKey(
+        'SyncRun',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='profile_snapshots',
+    )
+    raw_payload_json = models.JSONField(default=dict, blank=True)
+    normalized_payload_json = models.JSONField(default=dict, blank=True)
+    source_hash = models.TextField(blank=True, null=True)
+    observed_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'external_profile_snapshots'
+        indexes = [
+            models.Index(
+                fields=['external_profile', 'created_at'],
+                name='idx_ext_prof_snap_created',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.external_profile} snapshot @ {self.created_at.isoformat()}'
+
+
 class ExternalProfileAlias(CreatedAtModel):
     external_profile_alias_id = models.UUIDField(
         primary_key=True,

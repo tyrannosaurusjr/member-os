@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from django.db import transaction
 from django.utils import timezone
 
+from .normalization import normalize_email, normalize_name, normalize_phone
 from .models import (
     ExternalProfile,
+    ExternalProfileSnapshot,
     ProfileSyncStatus,
     SourceSystem,
     SyncDirection,
@@ -57,6 +59,32 @@ IDENTITY_HINT_KEYS = {
     'username',
 }
 
+EMAIL_KEYS = {
+    'email',
+    'primary_email',
+    'secondary_email',
+    'alternate_email',
+}
+
+PHONE_KEYS = {
+    'phone',
+    'primary_phone',
+    'secondary_phone',
+    'mobile',
+    'whatsapp_id',
+    'wa_id',
+}
+
+NAME_KEYS = {
+    'full_name',
+    'first_name',
+    'last_name',
+    'name',
+    'alias',
+    'display_name',
+    'username',
+}
+
 
 class CsvImportError(ValueError):
     pass
@@ -84,6 +112,47 @@ def normalize_row(raw_row: dict[str | None, str | None]) -> dict[str, str]:
         if not key:
             continue
         normalized[key] = (value or '').strip()
+    return normalized
+
+
+def normalize_identity_row(row: dict[str, str]) -> dict[str, str]:
+    normalized = dict(row)
+
+    for key in EMAIL_KEYS:
+        if key not in normalized:
+            continue
+        value = normalize_email(normalized.get(key))
+        normalized[key] = value or ''
+
+    for key in PHONE_KEYS:
+        if key not in normalized:
+            continue
+        value = normalize_phone(normalized.get(key))
+        normalized[key] = value or ''
+
+    for key in NAME_KEYS:
+        if key not in normalized:
+            continue
+        value = normalize_name(normalized.get(key))
+        normalized[key] = value or ''
+
+    if not normalized.get('full_name'):
+        for candidate_key in ('name', 'display_name', 'alias', 'username'):
+            candidate_value = normalized.get(candidate_key)
+            if candidate_value:
+                normalized['full_name'] = candidate_value
+                break
+
+    if not normalized.get('primary_email') and normalized.get('email'):
+        normalized['primary_email'] = normalized['email']
+
+    if not normalized.get('primary_phone'):
+        for candidate_key in ('phone', 'mobile', 'whatsapp_id', 'wa_id'):
+            candidate_value = normalized.get(candidate_key)
+            if candidate_value:
+                normalized['primary_phone'] = candidate_value
+                break
+
     return normalized
 
 
@@ -164,31 +233,50 @@ def import_external_profiles_from_csv(
     records_failed = 0
 
     for row_number, raw_row in enumerate(reader, start=2):
-        normalized_row = normalize_row(raw_row)
-        if not any(normalized_row.values()):
+        raw_payload = normalize_row(raw_row)
+        if not any(raw_payload.values()):
             continue
 
         records_received += 1
 
         try:
+            normalized_row = normalize_identity_row(raw_payload)
             if not has_identity_hint(normalized_row):
                 raise CsvImportError(
                     'Row is missing an identity hint like email, phone, name, alias, or source id.'
                 )
 
             source_record_id = derive_source_record_id(normalized_row)
-            source_hash = stable_row_hash(normalized_row)
+            source_hash = stable_row_hash(raw_payload)
 
             with transaction.atomic():
-                profile, created = ExternalProfile.objects.update_or_create(
+                profile, created = ExternalProfile.objects.get_or_create(
                     source_system=source_system,
                     source_record_id=source_record_id,
-                    defaults={
-                        'source_payload_json': normalized_row,
-                        'source_hash': source_hash,
-                        'source_last_seen_at': timezone.now(),
-                        'sync_status': ProfileSyncStatus.PENDING,
-                    },
+                    defaults={'sync_status': ProfileSyncStatus.PENDING},
+                )
+                observed_at = timezone.now()
+                profile.source_payload_json = raw_payload
+                profile.source_hash = source_hash
+                profile.source_last_seen_at = observed_at
+                profile.sync_status = ProfileSyncStatus.PENDING
+                profile.save(
+                    update_fields=[
+                        'source_payload_json',
+                        'source_hash',
+                        'source_last_seen_at',
+                        'sync_status',
+                        'updated_at',
+                    ]
+                )
+
+                snapshot = ExternalProfileSnapshot.objects.create(
+                    external_profile=profile,
+                    sync_run=sync_run,
+                    raw_payload_json=raw_payload,
+                    normalized_payload_json=normalized_row,
+                    source_hash=source_hash,
+                    observed_at=observed_at,
                 )
 
                 SyncEvent.objects.create(
@@ -199,6 +287,9 @@ def import_external_profiles_from_csv(
                         'row_number': row_number,
                         'source_record_id': source_record_id,
                         'external_profile_id': str(profile.external_profile_id),
+                        'external_profile_snapshot_id': str(
+                            snapshot.external_profile_snapshot_id
+                        ),
                         'result': 'created' if created else 'updated',
                     },
                     status=SyncEventStatus.SUCCESS,
@@ -211,7 +302,7 @@ def import_external_profiles_from_csv(
                 sync_run=sync_run,
                 source_system=source_system,
                 action_type='csv_import_row',
-                payload={'row_number': row_number, 'row': normalized_row},
+                payload={'row_number': row_number, 'row': raw_payload},
                 status=SyncEventStatus.ERROR,
                 error_message=str(exc),
             )
