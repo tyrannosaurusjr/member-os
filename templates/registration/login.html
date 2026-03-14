@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In | Member OS{% endblock %}
+
+{% block body %}
+  <div class="auth-shell">
+    <div class="auth-card">
+      <span class="eyebrow">Staff Sign-In</span>
+      <h1>Member OS operator access.</h1>
+      <p>
+        Use a staff account to enter the operator console, Django admin, and authenticated import endpoints.
+      </p>
+
+      {% if form.non_field_errors %}
+        <div class="error-panel">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <form method="post" class="form-stack">
+        {% csrf_token %}
+        {% if next %}
+          <input type="hidden" name="next" value="{{ next }}">
+        {% endif %}
+
+        <div class="field-group">
+          {{ form.username.label_tag }}
+          {{ form.username }}
+        </div>
+
+        <div class="field-group">
+          {{ form.password.label_tag }}
+          {{ form.password }}
+        </div>
+
+        <input type="submit" value="Sign in">
+      </form>
+
+      <p class="kicker">If you only have a member account, you do not have operator access.</p>
+    </div>
+  </div>
+{% endblock %}

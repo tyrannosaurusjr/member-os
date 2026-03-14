@@ -56,6 +56,12 @@ This repository starts with a Django-first bootstrap because the product is oper
    python manage.py runserver
    ```
 
+8. Sign in through the operator shell:
+
+   - staff login: `http://127.0.0.1:8000/login/`
+   - operator home: `http://127.0.0.1:8000/home/`
+   - Django admin: `http://127.0.0.1:8000/admin/`
+
 ## Deploy On Railway
 
 This repo includes a root-level Railway config in `railway.toml` for the Django app.
@@ -88,13 +94,15 @@ Notes:
 - The app auto-adds `RAILWAY_PUBLIC_DOMAIN` to `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` when Railway provides it.
 - `DJANGO_SETTINGS_MODULE` should be set on the Railway service itself so the same value is available during build, pre-deploy, and runtime.
 - `railway.toml` uses the virtualenv binaries explicitly during pre-deploy and runtime to avoid PATH differences between Railway build and deploy phases.
-- The legacy `backend/` directory is not used by this Railway config. It targets the Django app at the repository root.
+- The archived FastAPI scaffold at `archive/backend-fastapi-legacy/` is not used by this Railway config. It targets the Django app at the repository root.
 
 ## Useful Endpoints
 
 - Health check: `GET /api/v1/health`
 - CSV import: `POST /api/v1/external-profiles/import/csv`
 - Import run detail: `GET /api/v1/import-runs/{import_run_id}`
+- Staff login: `/login/`
+- Operator home: `/home/`
 - Admin: `/admin/`
 
 Example CSV import:
@@ -112,6 +120,11 @@ curl -X POST http://127.0.0.1:8000/api/v1/external-profiles/import/csv \
 - Production: `member_os.settings.production`
 
 Set `DJANGO_SETTINGS_MODULE` if you need to override the default module used by `manage.py`.
+
+## Repository Layout
+
+- active Django app: repository root
+- archived FastAPI scaffold: `archive/backend-fastapi-legacy/`
 
 ## Documentation
 

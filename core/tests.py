@@ -358,3 +358,78 @@ class CsvImportApiTests(TestCase):
             {'error': 'Unsupported source_system: telegram'},
         )
         self.assertEqual(SyncRun.objects.count(), 0)
+
+
+class OperatorAuthTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.staff_user = user_model.objects.create_user(
+            username='operator',
+            email='operator@example.com',
+            password='StrongPassword123!',
+            is_staff=True,
+        )
+        self.member_user = user_model.objects.create_user(
+            username='member',
+            email='member@example.com',
+            password='StrongPassword123!',
+            is_staff=False,
+        )
+
+    def test_root_redirects_anonymous_users_to_login(self):
+        response = self.client.get(reverse('root'))
+
+        self.assertRedirects(response, reverse('login'))
+
+    def test_staff_can_log_in_and_reach_operator_home(self):
+        response = self.client.post(
+            reverse('login'),
+            {
+                'username': 'operator',
+                'password': 'StrongPassword123!',
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Member data with a usable front door.')
+
+    def test_non_staff_login_is_rejected(self):
+        response = self.client.post(
+            reverse('login'),
+            {
+                'username': 'member',
+                'password': 'StrongPassword123!',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Staff access required for Member OS.')
+
+    def test_operator_home_forbids_authenticated_non_staff_users(self):
+        self.client.force_login(self.member_user)
+
+        response = self.client.get(reverse('operator-home'))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_can_change_password_without_admin(self):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.post(
+            reverse('password_change'),
+            {
+                'old_password': 'StrongPassword123!',
+                'new_password1': 'EvenStrongerPassword456!',
+                'new_password2': 'EvenStrongerPassword456!',
+            },
+            follow=True,
+        )
+
+        self.staff_user.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Password updated.')
+        self.assertTrue(
+            self.staff_user.check_password('EvenStrongerPassword456!')
+        )

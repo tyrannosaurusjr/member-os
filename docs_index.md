@@ -38,9 +38,11 @@ This file is the entry point for the written reference material in this reposito
 - Initial schema migrations: `core/migrations/`
 - CSV/manual import pipeline: `core/imports.py`
 - API views and routes: `core/views.py`, `core/urls.py`
+- Operator auth and shell templates: `templates/`, `core/forms.py`
 - Tests: `core/tests.py`
 
 ## Notes
 
 - The docs are written to describe the product generically, not a specific pilot organization.
 - Some examples use placeholder tiers or sample names to explain workflows without embedding client-specific branding.
+- The historical FastAPI scaffold is archived under `archive/backend-fastapi-legacy/` and is not part of the active Django runtime.

@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Operator Console | Member OS{% endblock %}
+
+{% block body %}
+  <div class="shell">
+    <div class="site-nav">
+      <a class="brand" href="{% url 'operator-home' %}">Member OS</a>
+      <div class="nav-actions">
+        <a class="button button-secondary" href="{% url 'password_change' %}">Change password</a>
+        <a class="button button-secondary" href="/admin/">Open admin</a>
+        <form class="inline-form" method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button type="submit">Sign out</button>
+        </form>
+      </div>
+    </div>
+
+    {% if messages %}
+      <ul class="messages">
+        {% for message in messages %}
+          <li class="message">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    <div class="frame">
+      <section class="hero">
+        <div>
+          <span class="eyebrow">Operations Console</span>
+          <h1>Member data with a usable front door.</h1>
+          <p>
+            This is the staff entry point for imports, audit workflows, and Django admin.
+            Use it as the authenticated shell while the richer operator UI is still being built.
+          </p>
+        </div>
+        <div class="hero-meta">
+          <div class="meta-chip">Signed in as {{ request.user.get_username }}</div>
+          <div class="meta-chip">Staff access: {{ request.user.is_staff|yesno:"enabled,disabled" }}</div>
+          <div class="meta-chip">Health route: <code>/api/v1/health</code></div>
+        </div>
+      </section>
+
+      <div class="content-grid">
+        <section class="stats-grid">
+          <article class="card">
+            <span class="eyebrow">People</span>
+            <p class="card-stat">{{ people_count }}</p>
+            <p>Canonical person records currently stored.</p>
+          </article>
+          <article class="card">
+            <span class="eyebrow">Profiles</span>
+            <p class="card-stat">{{ external_profiles_count }}</p>
+            <p>External source profiles being normalized and reconciled.</p>
+          </article>
+          <article class="card">
+            <span class="eyebrow">Imports</span>
+            <p class="card-stat">{{ inbound_sync_runs_count }}</p>
+            <p>Total inbound runs recorded through the Django ingest path.</p>
+          </article>
+          <article class="card">
+            <span class="eyebrow">Open Merge Review</span>
+            <p class="card-stat">{{ open_merge_candidates_count }}</p>
+            <p>Merge candidates still waiting for operator judgment.</p>
+          </article>
+        </section>
+
+        <section class="actions-grid">
+          <a class="action-link" href="/admin/">
+            <article class="card">
+              <h3>Admin Console</h3>
+              <p>Manage models, inspect records, and use Django admin for direct operations.</p>
+            </article>
+          </a>
+          <a class="action-link" href="{% url 'password_change' %}">
+            <article class="card">
+              <h3>Password Management</h3>
+              <p>Rotate operator credentials without dropping into the Django admin.</p>
+            </article>
+          </a>
+          <a class="action-link" href="https://member-os-web-production.up.railway.app/api/v1/health">
+            <article class="card">
+              <h3>Service Health</h3>
+              <p>Check the public health endpoint for Railway and external uptime monitoring.</p>
+            </article>
+          </a>
+        </section>
+
+        <section class="list-grid">
+          <article class="panel">
+            <h2>Recent Import Runs</h2>
+            {% if recent_import_runs %}
+              <ul class="list">
+                {% for sync_run in recent_import_runs %}
+                  <li>
+                    <div class="pill">{{ sync_run.get_source_system_display }}</div>
+                    <p><strong>{{ sync_run.get_status_display }}</strong> • {{ sync_run.records_processed }} processed / {{ sync_run.records_failed }} failed</p>
+                    <p class="muted">{{ sync_run.created_at }}</p>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p>No imports have been recorded yet.</p>
+            {% endif %}
+          </article>
+
+          <article class="panel">
+            <h2>Current Boundaries</h2>
+            <ul class="list">
+              <li>
+                <span class="pill">Auth</span>
+                <p>Staff-only login controls access to the operator shell and import endpoints.</p>
+              </li>
+              <li>
+                <span class="pill">Audit</span>
+                <p>Raw snapshots remain append-only for repeated imports.</p>
+              </li>
+              <li>
+                <span class="pill pill-danger">Legacy</span>
+                <p>The old FastAPI scaffold is archived and no longer part of the active runtime.</p>
+              </li>
+            </ul>
+          </article>
+        </section>
+      </div>
+    </div>
+  </div>
+{% endblock %}

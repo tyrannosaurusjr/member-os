@@ -17,7 +17,30 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
+from core.views import (
+    OperatorHomeView,
+    OperatorRootView,
+    StaffLoginView,
+    StaffLogoutView,
+    StaffPasswordChangeDoneView,
+    StaffPasswordChangeView,
+)
+
 urlpatterns = [
+    path('', OperatorRootView.as_view(), name='root'),
+    path('home/', OperatorHomeView.as_view(), name='operator-home'),
+    path('login/', StaffLoginView.as_view(), name='login'),
+    path('logout/', StaffLogoutView.as_view(), name='logout'),
+    path(
+        'account/password/',
+        StaffPasswordChangeView.as_view(),
+        name='password_change',
+    ),
+    path(
+        'account/password/done/',
+        StaffPasswordChangeDoneView.as_view(),
+        name='password_change_done',
+    ),
     path('admin/', admin.site.urls),
     path('api/v1/', include('core.urls')),
 ]
