@@ -10,6 +10,7 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from .apple_contacts import FIELD_SEPARATOR, RECORD_SEPARATOR, build_import_rows, parse_contacts_export
+from .luma_export import build_import_rows as build_luma_import_rows
 from .stripe_export import build_import_rows as build_stripe_import_rows
 from .normalization import normalize_email, normalize_name, normalize_phone
 from .models import (
@@ -235,6 +236,98 @@ class StripeWorkflowTests(SimpleTestCase):
         self.assertEqual(rows[0]['stripe_subscription_count'], '0')
         self.assertEqual(rows[0]['stripe_livemode'], 'true')
         self.assertEqual(rows[0]['stripe_delinquent'], 'true')
+
+
+class LumaWorkflowTests(SimpleTestCase):
+    def test_build_import_rows_groups_same_person_across_multiple_events(self):
+        rows = build_luma_import_rows(
+            events=[
+                {
+                    'api_id': 'evt_1',
+                    'name': 'Delphi Dinner',
+                    'start_at': '2026-03-01T10:00:00.000Z',
+                },
+                {
+                    'api_id': 'evt_2',
+                    'name': 'Founder Breakfast',
+                    'start_at': '2026-03-10T10:00:00.000Z',
+                },
+            ],
+            guests_by_event={
+                'evt_1': [
+                    {
+                        'api_id': 'gst_1',
+                        'approval_status': 'approved',
+                        'registered_at': '2026-02-20T10:00:00.000Z',
+                        'user': {
+                            'api_id': 'usr_1',
+                            'name': 'Jane Smith',
+                            'email': 'jane@example.com',
+                        },
+                    }
+                ],
+                'evt_2': [
+                    {
+                        'api_id': 'gst_2',
+                        'approval_status': 'approved',
+                        'registered_at': '2026-03-05T10:00:00.000Z',
+                        'user': {
+                            'api_id': 'usr_1',
+                            'name': 'Jane Smith',
+                            'email': 'jane@example.com',
+                        },
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['source_record_id'], 'usr_1')
+        self.assertEqual(rows[0]['full_name'], 'Jane Smith')
+        self.assertEqual(rows[0]['luma_person_id'], 'usr_1')
+        self.assertEqual(rows[0]['luma_guest_count'], '2')
+        self.assertEqual(rows[0]['luma_event_count'], '2')
+        self.assertEqual(rows[0]['luma_last_registered_at'], '2026-03-05T10:00:00.000Z')
+        self.assertEqual(
+            json.loads(rows[0]['luma_event_names_json']),
+            ['Delphi Dinner', 'Founder Breakfast'],
+        )
+        self.assertEqual(
+            json.loads(rows[0]['luma_approval_statuses_json']),
+            ['approved'],
+        )
+        self.assertIn('Luma guest history across 2 registration(s)', rows[0]['notes'])
+
+    def test_build_import_rows_falls_back_to_email_when_user_id_missing(self):
+        rows = build_luma_import_rows(
+            events=[
+                {
+                    'api_id': 'evt_3',
+                    'name': 'Community Salon',
+                    'start_at': '2026-03-15T10:00:00.000Z',
+                }
+            ],
+            guests_by_event={
+                'evt_3': [
+                    {
+                        'api_id': 'gst_3',
+                        'approval_status': 'invited',
+                        'registered_at': '2026-03-12T10:00:00.000Z',
+                        'user': {
+                            'name': 'Ops Team',
+                            'email': 'ops@example.com',
+                        },
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['source_record_id'], 'ops@example.com')
+        self.assertEqual(rows[0]['primary_email'], 'ops@example.com')
+        self.assertEqual(rows[0]['full_name'], 'Ops Team')
+        self.assertEqual(rows[0]['first_name'], 'Ops')
+        self.assertEqual(rows[0]['last_name'], 'Team')
 
 
 class ImportExternalProfilesCommandTests(TestCase):

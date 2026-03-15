@@ -102,6 +102,21 @@ This repository starts with a Django-first bootstrap because the product is oper
    - `--import` runs the standard Django ingestion pipeline with `source_system=stripe`
    - the Django web server does not need to be running for the CLI export/import flow
 
+13. Luma workflow:
+
+   ```bash
+   export LUMA_API_KEY=your_luma_api_key
+   ./scripts/luma_to_member_os.sh --output ./tmp/luma-guests.csv
+   ./scripts/luma_to_member_os.sh --import --output ./tmp/luma-guests.csv
+   ```
+
+   Notes:
+
+   - export calls Luma's public API with the calendar API key tied to your Luma calendar
+   - it fetches calendar events and guest lists, then aggregates them into one row per person where possible
+   - `--import` runs the standard Django ingestion pipeline with `source_system=luma`
+   - this is designed for operator test runs without needing the Django web server running
+
 ## Deploy On Railway
 
 This repo includes a root-level Railway config in `railway.toml` for the Django app.
