@@ -12,6 +12,8 @@ from django.urls import reverse
 from .apple_contacts import FIELD_SEPARATOR, RECORD_SEPARATOR, build_import_rows, parse_contacts_export
 from .luma_export import build_import_rows as build_luma_import_rows
 from .stripe_export import build_import_rows as build_stripe_import_rows
+from .substack_export import build_import_rows as build_substack_import_rows
+from .substack_export import parse_substack_csv
 from .normalization import normalize_email, normalize_name, normalize_phone
 from .models import (
     CanonicalMembershipTier,
@@ -330,6 +332,73 @@ class LumaWorkflowTests(SimpleTestCase):
         self.assertEqual(rows[0]['last_name'], 'Team')
 
 
+class SubstackWorkflowTests(SimpleTestCase):
+    def test_parse_substack_csv_normalizes_common_headers(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            csv_path = Path(temp_dir) / 'substack.csv'
+            csv_path.write_text(
+                'Email,Name,Status,Subscription Type,Subscribed At\n'
+                'jane@example.com,Jane Smith,active,paid,2026-03-01\n',
+                encoding='utf-8',
+            )
+
+            rows = parse_substack_csv(csv_path)
+
+        self.assertEqual(
+            rows,
+            [
+                {
+                    'email': 'jane@example.com',
+                    'full_name': 'Jane Smith',
+                    'status': 'active',
+                    'subscription_type': 'paid',
+                    'subscribed_at': '2026-03-01',
+                }
+            ],
+        )
+
+    def test_build_import_rows_maps_substack_subscriber_context(self):
+        rows = build_substack_import_rows(
+            [
+                {
+                    'subscriber_id': 'sub_123',
+                    'email': 'jane@example.com',
+                    'full_name': 'Jane Smith',
+                    'status': 'active',
+                    'subscription_type': 'paid',
+                    'subscribed_at': '2026-03-01',
+                    'notes': 'Imported from newsletter',
+                }
+            ]
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['source_record_id'], 'sub_123')
+        self.assertEqual(rows[0]['first_name'], 'Jane')
+        self.assertEqual(rows[0]['last_name'], 'Smith')
+        self.assertEqual(rows[0]['membership_status'], 'active')
+        self.assertEqual(rows[0]['substack_subscription_status'], 'active')
+        self.assertEqual(rows[0]['substack_subscription_type'], 'paid')
+        self.assertIn('Imported from newsletter', rows[0]['notes'])
+
+    def test_build_import_rows_falls_back_to_email_when_subscriber_id_missing(self):
+        rows = build_substack_import_rows(
+            [
+                {
+                    'email': 'ops@example.com',
+                    'first_name': 'Ops',
+                    'last_name': 'Team',
+                    'status': 'unsubscribed',
+                    'subscription_type': 'free',
+                }
+            ]
+        )
+
+        self.assertEqual(rows[0]['source_record_id'], 'ops@example.com')
+        self.assertEqual(rows[0]['full_name'], 'Ops Team')
+        self.assertEqual(rows[0]['membership_status'], 'inactive')
+
+
 class ImportExternalProfilesCommandTests(TestCase):
     def test_management_command_imports_csv_from_filesystem(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -384,6 +453,7 @@ class SeedDataTests(TestCase):
 
         self.assertEqual(priorities[('phone', SourceSystem.WHATSAPP)], 1)
         self.assertEqual(priorities[('email', SourceSystem.CLAY)], 6)
+        self.assertEqual(priorities[('membership_status', SourceSystem.SUBSTACK)], 5)
         self.assertGreater(
             priorities[('name', SourceSystem.WHATSAPP)],
             priorities[('name', SourceSystem.APPLE_CONTACTS)],
@@ -398,6 +468,14 @@ class CoreModelConstraintTests(TestCase):
                     source_system='telegram',
                     source_record_id='abc123',
                 )
+
+    def test_external_profile_accepts_substack_source_system(self):
+        profile = ExternalProfile.objects.create(
+            source_system=SourceSystem.SUBSTACK,
+            source_record_id='sub_123',
+        )
+
+        self.assertEqual(profile.source_system, SourceSystem.SUBSTACK)
 
     def test_field_source_priority_uniqueness_is_enforced(self):
         with self.assertRaises(IntegrityError):

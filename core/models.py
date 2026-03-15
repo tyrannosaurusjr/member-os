@@ -32,6 +32,7 @@ def percentage_constraint(field_name: str, *, name: str) -> models.CheckConstrai
 class SourceSystem(models.TextChoices):
     STRIPE = 'stripe', 'Stripe'
     LUMA = 'luma', 'Luma'
+    SUBSTACK = 'substack', 'Substack'
     MAILCHIMP = 'mailchimp', 'Mailchimp'
     GOOGLE_SHEETS = 'google_sheets', 'Google Sheets'
     APPLE_CONTACTS = 'apple_contacts', 'Apple Contacts'

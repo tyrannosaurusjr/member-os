@@ -117,6 +117,19 @@ This repository starts with a Django-first bootstrap because the product is oper
    - `--import` runs the standard Django ingestion pipeline with `source_system=luma`
    - this is designed for operator test runs without needing the Django web server running
 
+14. Substack workflow:
+
+   ```bash
+   ./scripts/substack_to_member_os.sh --input ~/Downloads/substack-subscribers.csv --output ./tmp/substack-subscribers.csv
+   ./scripts/substack_to_member_os.sh --input ~/Downloads/substack-subscribers.csv --import --output ./tmp/substack-subscribers.csv
+   ```
+
+   Notes:
+
+   - this workflow transforms a Substack subscriber export CSV into the Member OS import shape
+   - it imports with `source_system=substack`
+   - it is tolerant of common Substack export headers like `email`, `name`, `status`, `subscription_type`, and `subscribed_at`
+
 ## Deploy On Railway
 
 This repo includes a root-level Railway config in `railway.toml` for the Django app.
